@@ -1,32 +1,68 @@
-%% AI Politician Accountability System
-flowchart LR
-  %% Collection
-  subgraph Collection[Data Collection]
-    UL["User Location (Python)\n– gets lat/long"] --> ON["OpenNorth API Fetcher\n– fetches representatives by point"]
-  end
+# AI Politician Accountability — System Design
 
-  ON --> MQ["Task Queue\n– queue research jobs"]
+## Overview
+This design describes an AI agent system that collects representative data (via OpenNorth), runs deep research agents to gather evidence about a politician, and produces age‑appropriate summaries for adults and children.
 
-  %% Manager / Agents
-  subgraph Manager[Deep Research Agent - Manager Pattern]
-    MQ --> MGR["Orchestrator\n– dispatches tasks to agents"]
-    MGR --> A1["Agent: Political Activities\n– finds public political actions"]
-    MGR --> A2["Agent: Controversies\n– searches for personal controversies"]
-    MGR --> A3["Agent: Voting & Policy\n– collects voting records and stated positions"]
-  end
+## Data Source
+- Primary: OpenNorth representatives API (by lat/long).
 
-  A1 --> SUP["Supervisor\n– collects HTML + metadata"]
-  A2 --> SUP
-  A3 --> SUP
+Example request (Python module provides lat/long):
 
-  %% Post-processing & Storage
-  SUP --> SUM["Summarizer LLM\n– summarizes collected HTML"]
+```
+https://represent.opennorth.ca/representatives/house-of-commons/?point=45.524%2C-73.596
+```
 
-  SUM --> ADT["Adult Summary\n– semi-formal summary for adults"]
-  SUM --> KID["Kid Summary (fine-tuned)\n– slang/age-appropriate summary for kids"]
+Example (trimmed) response:
 
-  ADT --> UIAdult["Adult UI\n– web/mobile interface"]
-  KID --> UIKid["Kid UI\n– simplified, engaging interface"]
+```json
+{
+  "objects": [
+    {
+      "name": "Rachel Bendayan",
+      "district_name": "Outremont",
+      "elected_office": "MP",
+      "party_name": "Liberal",
+      "email": "Rachel.Bendayan@parl.gc.ca",
+      "url": "https://www.ourcommons.ca/Members/en/rachel-bendayan(88567)",
+      "photo_url": "https://.../BendayanRachel_Lib.jpg",
+      "offices": [ /* ... */ ]
+    }
+  ],
+  "meta": { "total_count": 1 }
+}
+```
 
-  classDef box stroke:#333,stroke-width:1px,fill:#f3f4f6;
-  class Collection,Manager box;
+## High-level Flow
+1. User Location Module (Python) provides lat/long.
+2. OpenNorth API Fetcher retrieves representative(s) for that point.
+3. Manager / Orchestrator enqueues and dispatches research tasks to multiple agents.
+4. Agents (parallel): political activities, personal controversies, voting & policy (and optionally media coverage).
+5. Supervisor collects raw HTML and metadata from agent results and stores the source.
+6. Summarizer LLM ingests collected HTML and creates two formats: Adult Summary (semi-formal) and Kid Summary (age-appropriate slang/fine-tuned).
+7. Summaries are exposed through simple UIs (Adult UI, Kid UI).
+
+## Components & Short Descriptors
+- User Location Module — obtains user coordinates (Python), feeds the OpenNorth request.
+- OpenNorth API Fetcher — queries the OpenNorth endpoint for representatives by point.
+- Task Queue — queues research jobs for the manager to process.
+- Manager / Orchestrator — dispatches jobs to specialized agents and tracks progress.
+- Agent: Political Activities — finds public political actions (bills, motions, public statements).
+- Agent: Controversies — searches for personal controversies, ethics reports, news items.
+- Agent: Voting & Policy — collects voting records, public positions, and policy stances.
+- (Optional) Agent: Media Coverage — aggregates recent coverage and sentiment.
+- Supervisor — aggregates raw HTML and metadata returned by agents; stores source pages.
+- Raw HTML Store — blob storage for source pages (keeps provenance).
+- Summarizer LLM — model tuned to summarize HTML into concise prose.
+- Adult Summary — semi-formal, contextual summary for adults.
+- Kid Summary — simplified, engaging summary using age-appropriate language (requires fine-tuning).
+- Adult UI / Kid UI — presentation layers for consumers.
+
+## Notes & Scope
+- This design intentionally excludes infrastructure concerns (monitoring, auth, schedulers, vector DBs) to keep scope focused on the research pipeline and summarization.
+- The system preserves source HTML for auditing and provenance.
+- The Kid Summary requires a fine-tuning pipeline (not included in current scope) to ensure cultural relevance and safety.
+
+## Next Steps (suggested)
+- Add a minimal Python fetcher and queue prototype to demonstrate end-to-end flow.
+- Wire a basic Supervisor that saves HTML to `/data/` and passes it to a summarizer stub.
+- Create simple static pages for Adult UI and Kid UI to display outputs.
