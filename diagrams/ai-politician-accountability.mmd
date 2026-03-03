@@ -1,0 +1,39 @@
+%% AI Politician Accountability System
+flowchart LR
+  subgraph Collection[Data Collection]
+    UL[User Location Module (Python)] --> ON[OpenNorth API Fetcher]
+  end
+
+  ON --> MQ[Message Queue / Task Queue]
+
+  subgraph Manager[Deep Research Manager]
+    MQ --> MGR[Manager / Orchestrator]
+    MGR --> A1[Political Activities Agent]
+    MGR --> A2[Personal Controversies Agent]
+    MGR --> A3[Voting Record & Policy Agent]
+  end
+
+  A1 --> SUP[Supervisor Agent (aggregates HTML & meta)]
+  A2 --> SUP
+  A3 --> SUP
+
+  SUP --> DB[Raw HTML Store (DB / Blob Storage)]
+  SUP --> EMB[Embedding Service / Vector DB]
+  SUP --> SUM[Summarizer LLM]
+
+  SUM --> ADT[Adult Summary Service (semi-formal)]
+  SUM --> KID[Kid Summary Service (slang, fine-tuned LLM)]
+
+  ADT --> UIAdult[Adult UI (web/mobile)]
+  KID --> UIKid[Kid UI (engaging, age-appropriate)]
+
+  subgraph Ops[Infrastructure & Ops]
+    SCHED[Scheduler / Cron] --> MGR
+    MON[Monitoring & Audit Logs] --> DB
+    CACHE[Embedding Cache] --> SUM
+    FT[Fine-tune Pipeline] --> KID
+    AUTH[Auth & Rate Limiting] --> ON
+  end
+
+  classDef box stroke:#333,stroke-width:1px,fill:#f9f9f9;
+  class Collection,Manager,Ops box;
