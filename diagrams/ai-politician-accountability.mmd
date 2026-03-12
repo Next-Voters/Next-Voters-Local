@@ -1,42 +1,52 @@
-graph LR
-    %% ================================================================
-    %% SUPERVISOR DELEGATION MODEL - Multi-Agent Legislation Research
-    %% ================================================================
+graph TB
+    %% Sequential Pipeline — Multi-Agent Legislation & Accountability
+    %% Static LangGraph DAG with Conditional Retry Edge
 
-    START[User Trigger] --> SUPERVISOR
+    START([User Trigger]) --> AGENT1
 
-    %% SUPERVISOR
-    SUPERVISOR[Supervisor Agent]
+    %% AGENT 1
+    AGENT1[Agent 1: Legislation Finder] --> A1_TOOLS[Tools: Web Search, URL Fetcher, HTML Parser]
+    AGENT1 ==>|URLs + bill metadata| AGENT2
 
-    %% AGENTS
-    SUPERVISOR -->|delegate| AGENT1[Agent 1: Legislation Finder]
-    SUPERVISOR -->|delegate| AGENT2[Agent 2: Scraper Builder]
-    SUPERVISOR -->|delegate| AGENT3[Agent 3: Research Writer]
+    %% AGENT 2
+    AGENT2[Agent 2: Scraper Builder] --> A2_TOOLS[Tools: Code Generator, Python REPL, Date Filter]
+    AGENT2 ==>|raw legislation text + vote records| AGENT3
 
-    %% AGENT 1 TOOLS
-    AGENT1 --> AGENT1_TOOLS[Tools: Web Search, URL Fetcher, HTML Parser]
+    %% AGENT 3
+    AGENT3[Agent 3: Politician Position Finder] --> A3_TOOLS[Tools: Web Search, Press Release Scraper, Floor Speech Parser, Vote Record Matcher]
+    AGENT3 ==>|raw politician statements| REDACTOR
 
-    %% AGENT 2 TOOLS
-    AGENT2 --> AGENT2_TOOLS[Tools: Code Generator, Python REPL, Date Filter]
+    %% REDACTOR — deterministic code, not LLM
+    REDACTOR[Redactor — Code, NOT LLM]
+    REDACTOR ==>|anonymized statements + raw source| AGENT4
 
-    %% AGENT 3 TOOLS
-    AGENT3 --> AGENT3_TOOLS[Tools: Note Composer, Vector DB Writer]
+    %% AGENT 4
+    AGENT4[Agent 4: Rhetoric Neutralizer] --> A4_TOOLS[Tools: Rhetorical Device Classifier, Claim Extractor, Source Citation Linker]
+    AGENT4 ==>|structured neutral analysis| JUDGE
 
-    %% VECTOR DB SIDE EFFECT
-    AGENT3_TOOLS -->|publish embeddings| VECTOR_DB[(Vector Knowledge DB)]
+    %% JUDGE — single LLM call, stateless, no tools, no memory
+    JUDGE{{Judge — Single LLM Call, NOT an Agent}}
+    JUDGE -->|PASS| AGENT5
+    JUDGE -->|FAIL: soft criteria| AGENT4
+    JUDGE -->|FAIL: identity inference| REDACTOR
+    JUDGE -->|retries exhausted| QUARANTINE[Quarantine — confidence: low]
+    QUARANTINE -.-> AGENT5
 
-    %% OUTPUT TO PRESENTATION LLM
-    SUPERVISOR -->|raw research notes| PRESENTATION_LLM[Presentation LLM - NOT an agent]
-    PRESENTATION_LLM --> OUTPUT[Final Output]
+    %% AGENT 5
+    AGENT5[Agent 5: Research Writer] --> A5_TOOLS[Tools: Note Composer, Cross-Reference Engine, Vector DB Writer]
+    A5_TOOLS -->|publish embeddings| VECTOR_DB[(Vector Knowledge DB)]
+    AGENT5 ==>|research notes| PRESENTATION
 
-    %% RAG CHATBOT
-    VECTOR_DB -.->|retrieval| RAG_CHATBOT[RAG Chatbot]
+    %% PRESENTATION LLM — single LLM call, not an agent
+    PRESENTATION[Presentation LLM — NOT an Agent] --> OUTPUT([Final User Output])
 
-    %% ================================================================
+    %% RAG — downstream
+    VECTOR_DB -.->|retrieval| RAG[RAG Chatbot]
+
     %% NOTES
-    %% ================================================================
-    %% Agent 1: Finds legislation links, learns site structure
-    %% Agent 2: Generates scraper code, runs via REPL, filters by date (last 7 days)
-    %% Agent 3: Writes research notes, publishes to vector DB
-    %% Presentation LLM: Condenses notes (single LLM call, no autonomy)
-    %% RAG Chatbot: Downstream consumer of vector DB
+    %% ==> thick arrow = chain dependency (each agent depends on the previous)
+    %% --> solid arrow  = data flow / tool access
+    %% -.-> dashed      = conditional / async path
+    %% Judge criteria: 0) Identity inference prohibition 1) Grounding 2) Tonal bias 3) Unsupported inference
+    %% Judge retry: max 2 retries, then quarantine
+    %% Redactor: NER-based name removal, title stripping, replaces with Legislator A/B/C

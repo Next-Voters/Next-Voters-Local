@@ -1,45 +1,52 @@
-from langgraph.prebuilt import create_react_agent
-from langgraph_supervisor import create_supervisor
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from langchain_openai import ChatOpenAI
-from langchain_core.tools import tool
+from langgraph.graph import StateGraph, MessagesState, START, END
+from utils.agent import build_agent_1, build_agent_2
 
 llm = ChatOpenAI(model="gpt-4o-mini")
 
-@tool
-def add_numbers(a: int, b: int) -> int:
-    """Add two numbers together."""
-    return a + b
+# Build agents
+agent_1 = build_agent_1(llm)
+agent_2 = build_agent_2(llm)
 
-tools = [add_numbers]
-
-worker_agent_1 = create_react_agent(
-    llm=llm,
-    tools=tools,
-    name="worker_agent_a",
-    prompt="You solve problems and use tools when needed."
-)
-
-worker_agent_2 = create_react_agent(
-    llm=llm,
-    tools=tools,
-    name="worker_agent_b",
-    prompt="You solve problems and use tools when needed."
-)
-
-# ---- Supervisor ----
-supervisor = create_supervisor(
-    llm=llm,
-    agents=[worker_agent_1, worker_agent_2],
-    prompt="You decide which agent should handle the task."
-)
+# Node functions — each invokes an agent and returns updated messages
+def run_agent_1(state: MessagesState) -> MessagesState:
+    result = agent_1.invoke({"messages": state["messages"]})
+    return {"messages": result["messages"]}
 
 
-graph = supervisor.compile()
+def run_agent_2(state: MessagesState) -> MessagesState:
+    result = agent_2.invoke({"messages": state["messages"]})
+    return {"messages": result["messages"]}
 
-result = graph.invoke({
-    "messages": [
-        {"role": "user", "content": "What is 5 + 7?"}
-    ]
-})
 
-print(result)
+# Build the linear chain: START -> agent_1 -> agent_2 -> END
+graph_builder = StateGraph(MessagesState)
+graph_builder.add_node("legislation_finder", run_agent_1)
+graph_builder.add_node("scraper_builder", run_agent_2)
+
+graph_builder.add_edge(START, "legislation_finder")
+graph_builder.add_edge("legislation_finder", "scraper_builder")
+graph_builder.add_edge("scraper_builder", END)
+
+graph = graph_builder.compile()
+
+# Run
+if __name__ == "__main__":
+    result = graph.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Find recent Canadian legislation from the last 7 days.",
+                }
+            ]
+        }
+    )
+
+    # Print final messages
+    for msg in result["messages"]:
+        print(f"\n[{msg.type}]: {msg.content[:200] if msg.content else '(tool call)'}")
