@@ -36,6 +36,15 @@ class ReflectionEntry(BaseModel):
         description="Specific action planned for the next iteration (e.g., search query, tool to use)"
     )
 
+class IndividualReliabilityAnalysis(BaseModel):
+    """State for all individual reliability analysis"""
+
+    score: str = Field(
+        description="Assign a score on how reliable the source is. Look for .edu .gov and city sources like brampton.ca when giving a score. Create a bias towards government ran websites to ensure non-partisian involvement."
+    )
+    rationale: str = Field(
+        description="Explain your choice for the scoring in 250 characters or less"
+    )
 
 class LegislationFinderState(TypedDict):
     """State for the legislation finder agent."""
@@ -43,7 +52,9 @@ class LegislationFinderState(TypedDict):
     messages: Annotated[list[BaseMessage], operator.add]
     reflection_list: NotRequired[Annotated[list[ReflectionEntry], operator.add]]
     city: NotRequired[str]
-    legislation_sources: NotRequired[Annotated[list[str], operator.add]]
+
+    raw_legislation_sources: NotRequired[Annotated[list[str], operator.add]]
+    reliable_legislation_sources: NotRequired[Annotated[list[str], operator.add]]
 
 
 # === TOOLS ===
@@ -86,9 +97,7 @@ def web_search(query: str, max_results: int = 5) -> str:
                 f"Score: {result.get('score', 0.0)}\n"
             )
 
-        return Command(
-            update={"legislation_sources", new_formatted_results}
-        )
+        return Command(update={"raw_legislation_sources", new_formatted_results})
 
     except Exception as e:
         return f"Error performing search: {str(e)}"
@@ -105,13 +114,11 @@ def reflection_tool(reflection: ReflectionEntry) -> str:
     Returns:
         A Command that updates the graph state by appending the reflection to reflection_list.
     """
-    return Command(
-        update={"reflection_list": [reflection]}
-    )
+    return Command(update={"reflection_list": [reflection]})
 
 
 @tool
-def reliability_analysis(analyses):
+def reliability_analysis(analyses: list[IndividualReliabilityAnalysis]):
     return f"Reliability analysis: {analyses}"
 
 
