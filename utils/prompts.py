@@ -135,3 +135,32 @@ Return a JSON list where each item has:
 Sources with Wikidata context:
 {sources_with_context}
 """
+
+reflection_prompt = """You are a research reflection analyst for a civic legislation research system.
+
+Given the conversation history and Wikidata context about organizations encountered, produce a structured reflection that helps the agent improve its research.
+
+Conversation context:
+{conversation_summary}
+
+Organizations encountered and their Wikidata classifications:
+{org_context}
+
+Produce a reflection with:
+1. "reflection": A concise summary of research progress so far — what legislation has been found, what sources were used, and how reliable the overall evidence base is.
+2. "gaps_identified": A list of specific, actionable gaps. Examples:
+   - "No official government source found — only news coverage"
+   - "Only found 1 piece of legislation — city councils typically pass multiple items per week"
+   - "All sources are from the same media company — need diverse sourcing"
+   - "No primary source (actual legislation text) found — only secondary reporting"
+3. "next_action": The single most important next step the agent should take.
+
+RULES:
+- Ground your reflection in FACTS from the conversation — do not speculate.
+- Use the Wikidata org context to assess source diversity and authority.
+- Keep the reflection under 300 words.
+- Gaps must be specific and actionable, not vague.
+
+Return valid JSON matching this structure:
+{{"reflection": "...", "gaps_identified": ["...", "..."], "next_action": "..."}}
+"""
