@@ -26,9 +26,8 @@ from utils.wikidata_client import search_entity, get_org_classification
 
 load_dotenv()
 
-# Budget model for internal tool reasoning (org extraction, judgments, reflections)
 mini_model = ChatOpenAI(
-    model="gpt-4o-mini", temperature=0.0, max_tokens=1500, timeout=30
+    model="gpt-5-mini", temperature=0.0, max_tokens=1500, timeout=30
 )
 
 tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
