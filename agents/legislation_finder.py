@@ -11,6 +11,7 @@ from langgraph.prebuilt import ToolNode
 
 from utils.models import ReflectionEntry
 from utils.prompts import legislation_finder_sys_prompt
+from utils.agents import should_continue
 from tools.legislation_finder import web_search, reflection_tool, reliability_analysis
 
 load_dotenv()
@@ -34,18 +35,7 @@ class LegislationFinderState(TypedDict):
 tools = [web_search, reflection_tool, reliability_analysis]
 
 
-# === FUNCTIONS FOR NODES ===
-def should_continue(state: LegislationFinderState) -> bool:
-    """Determine if the agent should continue or end based on if there is a tool call to be made."""
-    last_message = state["messages"][-1]
-
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        return True
-
-    return False
-
-
-def call_model(state: LegislationFinderState) -> LegislationFinderState:
+# === FUNCTIONS FOR NODES ===def call_model(state: LegislationFinderState) -> LegislationFinderState:
     """Call the LLM with the current state, including reflection context."""
     messages = state["messages"]
     city = state.get("city", "Unknown")
