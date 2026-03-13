@@ -1,6 +1,6 @@
 """Shared utilities for LangGraph ReAct agents."""
 
-from typing import TypeVar
+from typing import TypeVar, Callable
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
@@ -9,26 +9,27 @@ from langgraph.prebuilt import ToolNode
 # Generic state type for type hints
 StateType = TypeVar("StateType")
 
+
 class BaseReActAgent:
-    """Base class for ReAct agents with customizable state, tools, and prompts.
+    """Base class for ReAct agents with customizable state, tools, and dynamic prompts.
 
     This class encapsulates the core ReAct loop logic:
-    1. Call model with system prompt and messages
+    1. Call model with dynamically built system prompt and messages
     2. If model returns tool calls, execute them
     3. Loop back to model with tool results
     4. End when model returns no tool calls
 
-    Subclasses/instances customize:
+    Instances customize:
     - State schema (TypedDict)
     - Tools list
-    - System prompt (passed in pre-formatted at invocation time)
+    - Prompt builder (function that takes state and returns formatted system prompt)
     """
 
     def __init__(
         self,
         state_schema: type,
         tools: list,
-        system_prompt: str,
+        prompt_builder: Callable[[StateType], str],
         # Optional
         model_name: str = "gpt-4o",
         temperature: float = 0.0,
@@ -41,7 +42,9 @@ class BaseReActAgent:
             state_schema: A TypedDict class defining the agent's state structure.
                           Must include 'messages' key with Annotated[list[BaseMessage], operator.add].
             tools: List of LangChain tools the agent can use.
-            system_prompt: Prompt to elicit agent behaviour
+            prompt_builder: A callable that takes the current state and returns a formatted
+                           system prompt string. This is invoked on each model call to ensure
+                           the prompt reflects the current state (e.g., updated reflections).
 
             model_name: OpenAI model name.
             temperature: Model temperature.
@@ -50,7 +53,7 @@ class BaseReActAgent:
         """
         self.state_schema = state_schema
         self.tools = tools
-        self.system_prompt = system_prompt
+        self.prompt_builder = prompt_builder
 
         self.model = ChatOpenAI(
             model=model_name,
@@ -58,7 +61,6 @@ class BaseReActAgent:
             max_tokens=max_tokens,
             timeout=timeout,
         )
-        self._compiled_graph = None
 
     def _should_continue(self, state: StateType) -> bool:
         """Determine if the agent should continue or end based on if there is a tool call to be made.
@@ -80,7 +82,10 @@ class BaseReActAgent:
         return False
 
     def _call_model(self, state: StateType) -> dict:
-        """Call the LLM with the current state and system prompt.
+        """Call the LLM with the current state and dynamically built system prompt.
+
+        The system prompt is built fresh on each invocation using the prompt_builder
+        callback, ensuring it reflects the current state (e.g., updated reflections).
 
         Args:
             state: Current agent state.
@@ -90,24 +95,21 @@ class BaseReActAgent:
         """
 
         messages = state["messages"]
+        system_prompt = self.prompt_builder(state)
         model_with_tools = self.model.bind_tools(self.tools)
 
         response = model_with_tools.invoke(
-            [{"role": "system", "content": self.system_prompt}] + messages
+            [{"role": "system", "content": system_prompt}] + messages
         )
 
         return {"messages": [response]}
 
-    def build(self) -> "CompiledReActAgent":
-        """Build and compile the agent graph with a prompt builder function.
+    def build(self):
+        """Build and compile the agent graph.
 
-        Args:
-           None
         Returns:
-            A CompiledReActAgent that can be invoked with state.
+            A compiled LangGraph that can be invoked with state.
         """
-
-        # Create closure that captures prompt_builder
 
         tool_node = ToolNode(self.tools)
 

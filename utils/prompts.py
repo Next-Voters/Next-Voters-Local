@@ -1,3 +1,6 @@
+# === BASE PROMPTS ===
+# These are template strings that get formatted in agent files with state-specific values
+
 legislation_finder_sys_prompt = """
 You are a researcher agent. Research legislation from the past week for the specified city: {input_city}
 
@@ -149,10 +152,10 @@ Organizations encountered and their Wikidata classifications:
 Produce a reflection with:
 1. "reflection": A concise summary of research progress so far — what legislation has been found, what sources were used, and how reliable the overall evidence base is.
 2. "gaps_identified": A list of specific, actionable gaps. Examples:
-   - "No official government source found — only news coverage"
-   - "Only found 1 piece of legislation — city councils typically pass multiple items per week"
-   - "All sources are from the same media company — need diverse sourcing"
-   - "No primary source (actual legislation text) found — only secondary reporting"
+    - "No official government source found — only news coverage"
+    - "Only found 1 piece of legislation — city councils typically pass multiple items per week"
+    - "All sources are from the same media company — need diverse sourcing"
+    - "No primary source (actual legislation text) found — only secondary reporting"
 3. "next_action": The single most important next step the agent should take.
 
 RULES:
