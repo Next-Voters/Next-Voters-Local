@@ -69,8 +69,6 @@ class LegislationFinderState(TypedDict):
 class LegislationJudgement(BaseModel):
     pass
 
-# === TOOLS ===
-
 tools = [web_search, reflection_tool, reliability_analysis]
 tool_lookup = {tool.name: tool for tool in tools}
 
