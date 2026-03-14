@@ -1,30 +1,15 @@
-"""Shared utilities for LangGraph ReAct agents."""
+from typing import Callable, Union, TypeVar
 
-import operator
-from typing import TypeVar, TypedDict, Callable, Union, Annotated, NotRequired
-
-from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 
 from utils.models import ReflectionEntry
-from utils.tools import reflection_tool
+from tools.base_agent_tools import reflection_tool
 
 StateType = TypeVar("StateType")
 
 _REFLECTION_PREAMBLE = "Here are previous reflections. Use as context to drive your next actions/decisions:\n\n"
-
-
-class BaseAgentState(TypedDict):
-    """Shared state fields that every ReAct agent inherits.
-
-    Agent-specific states extend this with their own fields.
-    """
-
-    messages: Annotated[list[BaseMessage], operator.add]
-    reflection_list: NotRequired[Annotated[list[ReflectionEntry], operator.add]]
-
 
 class BaseReActAgent:
     """Base class for ReAct agents with shared reflection handling.

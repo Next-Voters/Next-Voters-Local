@@ -4,9 +4,11 @@ from typing import NotRequired, Annotated, TypedDict
 
 import operator
 
-from utils.agents import BaseAgentState, BaseReActAgent
-from utils.prompts import legislation_finder_sys_prompt
+from base_agent_template import BaseReActAgent
 from tools.legislation_finder import web_search, reliability_analysis
+
+from utils.typed_dicts import BaseAgentState
+from utils.prompts import legislation_finder_sys_prompt
 
 
 # === STATE DEFINITION ===
