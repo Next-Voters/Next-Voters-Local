@@ -15,14 +15,11 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from utils.prompts import (
-    reliability_org_extraction_prompt,
-    reliability_judgment_prompt,
-)
+from utils.prompts import reliability_judgment_prompt
 from utils.wikidata_client import search_entity, get_org_classification
 
-load_dotenv()
 
+load_dotenv()
 mini_model = ChatOpenAI(
     model="gpt-5-mini", temperature=0.0, max_tokens=1500, timeout=30
 )
@@ -44,13 +41,7 @@ def web_search(query: str, max_results: int = 5) -> Command | str:
     serp_api_key = os.getenv("SERP_API_KEY")
 
     if not serp_api_key:
-        return Command(
-            update={
-                "raw_legislation_sources": [
-                    "Error: SERP_API_KEY not configured. Please set your SERP_API_KEY environment variable."
-                ]
-            }
-        )
+        raise Exception("SERP API Key is invalid")
 
     try:
         response = requests.get(
@@ -68,32 +59,25 @@ def web_search(query: str, max_results: int = 5) -> Command | str:
 
         results = data.get("organic_results", [])
 
-        if not results:
-            return Command(
-                update={
-                    "raw_legislation_sources": [f"No results found for query: {query}"]
+        raw_legislation_sources = []
+        for result in results[:max_results]:
+            raw_legislation_sources.append(
+                {
+                    "organization": result.get("source", "Unknown"),
+                    "url": result.get("link", "N/A"),
                 }
             )
 
-        new_formatted_results = []
-        for result in results[:max_results]:
-            new_formatted_results.append(
-                f"Title: {result.get('title', 'N/A')}\n"
-                f"URL: {result.get('link', 'N/A')}\n"
-                f"Content: {result.get('snippet', 'N/A')[:500]}\n"
-                f"Score: {result.get('position', 0)}\n"
-            )
-
-        return Command(update={"raw_legislation_sources": new_formatted_results})
+        return Command(update={"raw_legislation_sources": raw_legislation_sources})
 
     except Exception as e:
-        return Command(update={"raw_legislation_sources": [f"Error: {str(e)}"]})
+        return f"Error: ${e}"
 
 
 @tool
 def reliability_analysis(
     raw_legislation_sources: Annotated[
-        list[str], InjectedState("raw_legislation_sources")
+        list[dict[str, Any]], InjectedState("raw_legislation_sources")
     ],
 ) -> Command:
     """Analyze raw legislation sources for reliability using Wikidata organization lookup.
@@ -115,34 +99,12 @@ def reliability_analysis(
                 "reliable_legislation_sources": [],
             }
         )
-
-    sources_text = "\n---\n".join(raw_legislation_sources)
-    extraction_prompt = reliability_org_extraction_prompt.format(sources=sources_text)
-
-    extraction_response = mini_model.invoke(
-        [
-            {"role": "system", "content": extraction_prompt},
-            {
-                "role": "user",
-                "content": "Extract the parent organization for each source.",
-            },
-        ]
-    )
-
-    try:
-        org_extractions = json.loads(extraction_response.content)
-    except (json.JSONDecodeError, TypeError):
-        return Command(
-            update={
-                "raw_legislation_sources": [],
-                "reliable_legislation_sources": raw_legislation_sources,
-            }
-        )
-
     sources_with_context = []
-    for item in org_extractions:
+
+    for item in raw_legislation_sources:
         url = item.get("url", "Unknown URL")
         org_name = item.get("organization", "Unknown")
+
         wikidata_context = {"label": org_name, "description": "Not found on Wikidata"}
 
         if org_name and org_name != "Unknown":
@@ -166,7 +128,7 @@ def reliability_analysis(
     judgment_response = mini_model.invoke(
         [
             {"role": "system", "content": judgment_prompt},
-            {"role": "user", "content": "Judge the reliability of each source."},
+            {"role": "user", "content": "Judge the reliability of each source based off of the context from Wikidata."},
         ]
     )
 
@@ -180,14 +142,7 @@ def reliability_analysis(
             }
         )
 
-    accepted_urls = {j["url"] for j in judgments if j.get("accepted", False)}
-
-    reliable_sources = []
-    for source in raw_legislation_sources:
-        for accepted_url in accepted_urls:
-            if accepted_url in source:
-                reliable_sources.append(source)
-                break
+    reliable_sources = {j["url"] for j in judgments if j.get("accepted", False)}
 
     return Command(
         update={

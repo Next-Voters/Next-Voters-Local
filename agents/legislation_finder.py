@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from typing import NotRequired, Annotated
+from typing import NotRequired, Annotated, TypedDict
 
 import operator
 
@@ -11,13 +11,18 @@ from tools.legislation_finder import web_search, reliability_analysis
 
 # === STATE DEFINITION ===
 
+class ReliableLegislationSources(TypedDict):
+    url: str
+    organization: str
 
 class LegislationFinderState(BaseAgentState):
     """Agent-specific state for the legislation finder agent."""
 
     city: NotRequired[str]
-    raw_legislation_sources: NotRequired[Annotated[list[str], operator.add]]
-    reliable_legislation_sources: NotRequired[Annotated[list[str], operator.add]]
+    raw_legislation_sources: NotRequired[Annotated[list[ReliableLegislationSources], operator.add]]
+    reliable_legislation_sources: NotRequired[
+        Annotated[list[str], operator.add]
+    ]
 
 
 # === AGENT CONSTRUCTION ===

@@ -65,30 +65,6 @@ OUTPUT FORMAT:
 When in doubt, cut it out.
 """
 
-reliability_org_extraction_prompt = """You are an expert at identifying the TRUE parent organization behind a URL.
-
-Given a list of raw source URLs and titles from web search results, extract the REAL organization that operates each source.
-
-CRITICAL RULES:
-- Extract the PARENT ORGANIZATION, not the product name.
-  - YouTube → Alphabet Inc. (NOT "YouTube")
-  - Instagram → Meta Platforms (NOT "Instagram")
-  - NBC News → NBCUniversal / Comcast (NOT "NBC News")
-  - A city .gov site → The actual city government (e.g., "City of Austin")
-- For government websites, identify the specific government body (e.g., "City of Austin", "Texas Legislature", "U.S. Congress").
-- For news outlets, identify the parent media company.
-- For think tanks and nonprofits, use their official registered name.
-- If you genuinely cannot determine the organization, return "Unknown".
-- When in doubt, never GUESS. 
-
-Return a JSON list where each item has:
-- "url": the source URL
-- "organization": the parent organization name (suitable for a Wikidata search)
-
-Sources to analyze:
-{sources}
-"""
-
 reliability_judgment_prompt = """You are a source reliability analyst for a civic legislation research system.
 
 For each source, you have been given:
