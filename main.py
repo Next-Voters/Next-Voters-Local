@@ -40,6 +40,7 @@ def run_content_retrieval(inputs: ChainData) -> ChainData:
 
     return {"legislation_content": legislation_content}
 
+
 def writer(inputs: ChainData) -> ChainData:
     """Generate final output using LLM with structured output."""
     agent_conversation = inputs.get("legislation_content", [])
