@@ -68,7 +68,9 @@ def web_search(query: str, max_results: int = 5) -> Command | str:
                 }
             )
 
-        return Command(update={"raw_legislation_sources": raw_legislation_sources})
+        return Command(
+            update={"raw_legislation_sources": raw_legislation_sources}
+        )
 
     except Exception as e:
         return f"Error: ${e}"
