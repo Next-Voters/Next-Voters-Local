@@ -22,66 +22,79 @@ _mini_model = ChatOpenAI(
 def reflection_tool(
     messages: Annotated[list[BaseMessage], InjectedState("messages")],
 ) -> Command:
-    """Generate a grounded reflection on the current research progress using Wikidata context.
+    """
+You are a reflection tool embedded in a multi-step research pipeline. Your job \
+is to reason carefully over the full conversation history provided to you — \
+including every tool call and its response — and produce a structured assessment \
+that will guide the next decision in the pipeline.
 
-    Analyzes the conversation history, looks up organizations mentioned in sources
-    on Wikidata, and produces a structured reflection identifying real gaps.
+## Context
+Organization context: {org_context}
 
-    Returns:
-        A Command that updates the graph state by appending the reflection to reflection_list.
+## Conversation history (most recent {n} messages)
+{conversation_summary}
+
+---
+
+## Your task
+
+Work through the following chain of thought before producing your output:
+
+1. **Inventory what has been attempted**
+   List every distinct action taken so far: searches run, entities looked up, \
+   APIs called, and the key result or outcome of each.
+
+2. **Identify what has been established**
+   State the facts or conclusions that are now well-supported by the evidence \
+   gathered. Be specific — vague summaries are not useful.
+
+3. **Identify what is still unknown or uncertain**
+   List the concrete gaps: information that was sought but not found, questions \
+   that remain unanswered, ambiguities that could lead the pipeline in the wrong \
+   direction.
+
+4. **Diagnose failure patterns (if any)**
+   Note if the same query or lookup has been attempted more than once with \
+   similar results, if the pipeline appears to be looping, or if a strategy is \
+   clearly not yielding useful signal.
+
+5. **Determine the single best next action**
+   Based on the gaps and the context, decide what one action would most advance \
+   progress. Be specific: name the tool to call, the exact query or entity to \
+   use, and why this is the highest-value next step. This must be a concrete \
+   instruction the agent can act on immediately.
+
+---
+
+## Output format
+
+Respond ONLY with a JSON object — no preamble, no markdown fences, no commentary.
+
+{{
+  "reflection": "<2–4 sentence summary of what has been done and what was learned>",
+  "gaps_identified": [
+    "<specific gap or unanswered question>",
+    "<another gap if applicable>"
+  ],
+  "next_action": "<direct, actionable instruction written as if addressed to the \
+agent — e.g., 'Search Wikidata for entity Q12345 to resolve the subsidiary \
+relationship' or 'Call get_org_classification with identifier X because the \
+current classification is ambiguous'>"
+}}
+
+Rules:
+- next_action must be a single, specific instruction. Never write "continue \
+searching" or "try again" without specifying exactly what to search for and why.
+- gaps_identified must be concrete missing facts, not vague observations like \
+"more research needed".
+- If everything needed is already known, set next_action to "Compile final \
+answer from established facts: <brief summary of what to include>".
+- Do not invent facts. Only reference information present in the conversation history.
     """
     # Build a conversation summary from recent messages
     recent_messages = messages[-10:] if len(messages) > 10 else messages
     conversation_summary = "\n".join(
         f"{msg.type}: {msg.content[:500]}" for msg in recent_messages if msg.content
-    )
-
-    # Extract organization names from messages that mention URLs/sources
-    org_names = set()
-    for msg in messages:
-        if not msg.content:
-            continue
-        content = msg.content
-        if (
-            "URL:" in content
-            or "http" in content
-            or ".gov" in content
-            or ".org" in content
-        ):
-            extraction_response = _mini_model.invoke(
-                [
-                    {
-                        "role": "system",
-                        "content": "Extract organization names from this text. Return ONLY a JSON list of strings. If none found, return [].",
-                    },
-                    {"role": "user", "content": content[:1000]},
-                ]
-            )
-            try:
-                names = json.loads(extraction_response.content)
-                if isinstance(names, list):
-                    org_names.update(names)
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-    # Look up each org on Wikidata
-    org_context_parts = []
-    for org_name in list(org_names)[:8]:  # Cap at 8 to avoid excessive API calls
-        entity_id = search_entity(org_name)
-        if entity_id:
-            classification = get_org_classification(entity_id)
-            org_context_parts.append(
-                f"- {org_name}: {classification.get('description', 'N/A')} | "
-                f"Type: {', '.join(classification.get('instance_of', ['Unknown']))} | "
-                f"Country: {classification.get('country', 'Unknown')}"
-            )
-        else:
-            org_context_parts.append(f"- {org_name}: Not found on Wikidata")
-
-    org_context = (
-        "\n".join(org_context_parts)
-        if org_context_parts
-        else "No organizations identified yet."
     )
 
     # Call LLM with reflection prompt
@@ -94,7 +107,7 @@ def reflection_tool(
             {"role": "system", "content": formatted_prompt},
             {
                 "role": "user",
-                "content": "Produce a structured reflection based on the research so far.",
+                "content": "Produce a structured reflection based on the past conversation",
             },
         ]
     )
