@@ -11,10 +11,10 @@ from typing import Annotated, Any
 import requests
 from dotenv import load_dotenv
 from langchain_core.messages import ToolMessage
-from langchain_core.tools import tool
+from langchain_core.tools import tool, InjectedToolCallId
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt.tool_node import InjectedState
-from langgraph.types import Command, InjectedToolCallId
+from langgraph.types import Command
 
 from utils.prompts import reliability_judgment_prompt
 from utils.wikidata_client import search_entity, get_org_classification
@@ -77,8 +77,7 @@ def web_search(
         summary = (
             f"Web search for '{query}' returned {len(raw_legislation_sources)} result(s):\n"
             + "\n".join(
-                f"  - {s['organization']}: {s['url']}"
-                for s in raw_legislation_sources
+                f"  - {s['organization']}: {s['url']}" for s in raw_legislation_sources
             )
         )
 
@@ -98,9 +97,7 @@ def web_search(
         error_msg = f"Web search failed: {e}"
         return Command(
             update={
-                "messages": [
-                    ToolMessage(content=error_msg, tool_call_id=tool_call_id)
-                ],
+                "messages": [ToolMessage(content=error_msg, tool_call_id=tool_call_id)],
             }
         )
 
@@ -190,9 +187,7 @@ def reliability_analysis(
             update={
                 "raw_legislation_sources": [],
                 "reliable_legislation_sources": raw_legislation_sources,
-                "messages": [
-                    ToolMessage(content=summary, tool_call_id=tool_call_id)
-                ],
+                "messages": [ToolMessage(content=summary, tool_call_id=tool_call_id)],
             }
         )
 
@@ -203,16 +198,16 @@ def reliability_analysis(
     summary_lines = [
         f"Reliability analysis complete. {len(accepted)} accepted, {len(rejected)} rejected.",
         "",
-        "Accepted sources:"
-        if accepted
-        else "No sources accepted.",
+        "Accepted sources:" if accepted else "No sources accepted.",
     ]
     for j in accepted:
         summary_lines.append(f"  ✓ {j['url']} — {j.get('reason', 'No reason given')}")
     if rejected:
         summary_lines.append("Rejected sources:")
         for j in rejected:
-            summary_lines.append(f"  ✗ {j['url']} — {j.get('reason', 'No reason given')}")
+            summary_lines.append(
+                f"  ✗ {j['url']} — {j.get('reason', 'No reason given')}"
+            )
 
     return Command(
         update={

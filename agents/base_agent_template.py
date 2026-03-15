@@ -1,4 +1,5 @@
-from typing import Callable, Union, TypeVar
+from typing import Callable, Union, TypeVar, Type
+from dotenv import load_dotenv
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
@@ -8,9 +9,12 @@ from utils.models import ReflectionEntry
 from utils.typed_dicts import BaseAgentState
 from tools.base_agent_tools import reflection_tool
 
+load_dotenv()
+
 StateType = TypeVar("StateType")
 
 _REFLECTION_PREAMBLE = "Here are previous reflections. Use as context to drive your next actions/decisions:\n\n"
+
 
 class BaseReActAgent:
     """Base class for ReAct agents with shared reflection handling.
