@@ -18,25 +18,12 @@ from langgraph.types import Command
 
 from utils.prompts import reliability_judgment_prompt
 from utils.wikidata_client import search_entity, get_org_classification
-
+from utils.helper import extract_json
 
 load_dotenv()
 mini_model = ChatOpenAI(
     model="gpt-4o-mini", temperature=0.0, max_tokens=1500, timeout=30
 )
-
-
-def _extract_json(text: str) -> str:
-    """Strip markdown code fences from LLM output before parsing."""
-    text = text.strip()
-    if text.startswith("```json"):
-        text = text[7:]
-    elif text.startswith("```"):
-        text = text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
-    return text.strip()
-
 
 @tool
 def web_search(
@@ -190,7 +177,7 @@ def reliability_analysis(
     )
 
     try:
-        cleaned_content = _extract_json(judgment_response.content)
+        cleaned_content = extract_json(judgment_response.content)
         judgments = json.loads(cleaned_content)
     except (json.JSONDecodeError, TypeError) as e:
         # Safe fallback: reject all sources if judgment parsing fails (can't verify reliability)
