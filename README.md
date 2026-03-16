@@ -1,7 +1,7 @@
 # Next Voters Local
 
 > **Hold your local representative accountable to their actions**  
-> An intelligent multi-agent system that investigates municipal legislation, extracts politician positions, and presents factual, bias-resistant information to voters.
+> An intelligent multi-agent deep research system that investigates municipal legislation, extracts politician positions, and presents factual, bias-resistant information to voters.
 
 <div align="center">
 
