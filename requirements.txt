@@ -5,3 +5,4 @@ mcp
 tavily-python
 httpx
 langchain-core
+rich
