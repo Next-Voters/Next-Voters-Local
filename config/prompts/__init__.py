@@ -1,6 +1,6 @@
 """Agent system prompts."""
 
-from utils.prompts.prompts import (
+from config.prompts.prompts import (
     legislation_finder_sys_prompt,
     note_taker_sys_prompt,
     reliability_judgment_prompt,
