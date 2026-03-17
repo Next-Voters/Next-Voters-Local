@@ -6,3 +6,7 @@ tavily-python
 httpx
 langchain-core
 rich
+fastapi
+uvicorn
+redis
+python-multipart

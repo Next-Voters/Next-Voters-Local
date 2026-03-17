@@ -1,0 +1,34 @@
+flowchart TD
+    subgraph Browser["Browser (Employee)"]
+        A[Login]
+        B[Submit Research Job]
+        C[Poll for Results\nevery 10s]
+        D[View Results]
+    end
+
+    subgraph BetterAuth["Better Auth"]
+        E[Authenticate Employee]
+        F[Issue JWT\nid, email, role — TTL 15min]
+        G[JWKS Endpoint\n/api/auth/jwks]
+    end
+
+    subgraph NextJS["Next.js — Vercel"]
+        H[Verify Session\nCheck employee role]
+        I[POST /jobs\nForward JWT in Bearer header]
+        J[GET /jobs/:id\nForward JWT]
+    end
+
+    subgraph FastAPI["FastAPI"]
+        K[Auth Middleware\nVerify JWT via JWKS\nCheck role == employee]
+        L[POST /jobs\nReturn job_id immediately]
+        M[BackgroundTask\nRun NV-Local Agent]
+        N[GET /jobs/:id\nReturn status + result]
+    end
+
+    A --> E --> F --> H
+    B --> H --> I --> K
+    K -- "Invalid / Expired" --> O[401 Rejected]
+    K -- "Valid" --> L --> M
+    C --> J --> K --> N
+    N -- "status: done" --> D
+    G -.->|FastAPI fetches public key| K
