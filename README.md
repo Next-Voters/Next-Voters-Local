@@ -141,7 +141,7 @@ Next Voters Local operates as a **sequential multi-agent system** where each ste
 
 ### Key Design Principles
 
-1. **Minimal Agency** — ReAct agents only where unpredictable targets or retry loops exist. Everything else is a deterministic LLM call or pure code.
+1. **Minimal Agency** — ReAct agents only where unpredictable targets or retry loops exist such as during legislative activity discovery phase. Everything else is a deterministic LLM call or pure code.
 2. **No Supervision** — Sequential DAG, no supervisor node. Routing is always the same; routing costs would waste API calls.
 3. **Judge Isolation** — The Judge never sees real names, never sees graph state. Its narrow scope is its strength.
 4. **Source Authority** — Only `.gov`, `.gc.ca`, and Wikidata-validated organizations pass reliability checks. No blogs, no opinion sites, no partisan media.
@@ -219,20 +219,6 @@ This system is designed for **informational purposes only**. Users should:
 - ✅ Understand this tool supplements, not replaces, civic engagement
 - ❌ Not rely on a single summary for critical decisions
 
----
-
-## 📝 Contributing
-
-- ✅ **Agent 1: Legislation Finder** — Complete with Wikidata source validation
-- 🚧 **Agent 2: Scraper Builder** — Stub (generates code, needs REPL integration)
-- 🚧 **Agent 3: Politician Position Finder** — Stub (search & relevance filtering)
-- 🚧 **Name Anonymizer (LLM-as-a-Defense)** — Not yet implemented
-- 🚧 **Rhetoric Neutralizer** — Not yet implemented
-- 🚧 **Judge** — Not yet implemented
-- 🚧 **Vector DB & RAG Chatbot** — Downstream work
-
----
-
 ## 📝 Contributing
 
 Contributions are welcome! Please follow these guidelines:
@@ -242,6 +228,8 @@ Contributions are welcome! Please follow these guidelines:
 3. **Make your changes** with clear commit messages
 4. **Test** locally: `python main.py`
 5. **Submit a Pull Request** with a description of changes
+
+#### ⚠️ Note: You are not entitled to payment for your services. You are also not affiliated with Next Voters, and you may not claim any titles of employment within the organization. 
 
 ### Reporting Issues
 
