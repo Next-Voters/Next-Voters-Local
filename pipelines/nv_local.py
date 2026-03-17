@@ -25,7 +25,7 @@ from langchain_openai import ChatOpenAI
 from agents.legislation_finder import legislation_finder_agent
 
 from utils.schemas import WriterOutput, ChainData
-from config.prompts import writer_sys_prompt, note_taker_sys_prompt
+from config.system_prompts import writer_sys_prompt, note_taker_sys_prompt
 
 load_dotenv()
 

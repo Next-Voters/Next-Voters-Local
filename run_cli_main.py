@@ -1,7 +1,7 @@
 """CLI wrapper script for NV Local voter education tool.
 
 This module is a simple entry point script that runs the CLI main function.
-It displays the welcome message, prompts for city input, executes the pipeline,
+It displays the welcome message, system_prompts for city input, executes the pipeline,
 and renders the resulting markdown report.
 
 Usage:

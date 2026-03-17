@@ -15,7 +15,7 @@ from agents.base_agent_template import BaseReActAgent
 from tools.legislation_finder import web_search, reliability_analysis
 
 from utils.schemas import LegislationFinderState
-from config.prompts import legislation_finder_sys_prompt
+from config.system_prompts import legislation_finder_sys_prompt
 
 load_dotenv()
 

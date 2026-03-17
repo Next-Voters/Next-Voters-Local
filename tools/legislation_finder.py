@@ -16,7 +16,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from config.prompts import reliability_judgment_prompt
+from config.system_prompts import reliability_judgment_prompt
 from utils.tools import search_entity, get_org_classification
 from utils.mcp.brave_client import search_legislation, extract_search_results
 from utils.json_utils import extract_json

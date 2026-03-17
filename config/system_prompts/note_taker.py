@@ -49,7 +49,7 @@ Write as if producing a highly compressed briefing that a downstream system will
 - **Be terse.** Notes are for machines and sophisticated readers, not casual audiences. Omit filler, transitions, and pleasantries.
 - **Never editorialize.** Do not add your own opinions, predictions, or framing beyond what the source material supports.
 - **Preserve specificity.** Numbers, proper nouns, dates, and named entities must be reproduced exactly — never paraphrased into vagueness.
-- **Ignore boilerplate.** Skip cookie notices, navigation text, ads, author bios, subscription prompts, and footer content unless directly relevant.
+- **Ignore boilerplate.** Skip cookie notices, navigation text, ads, author bios, subscription system_prompts, and footer content unless directly relevant.
 - **Handle ambiguity explicitly.** If content is unclear or contradictory within a single source, state the uncertainty inline in plain language rather than guessing.
 - **Do not summarize summaries.** If a source is already a summary or overview, note that and extract its points at face value.
 

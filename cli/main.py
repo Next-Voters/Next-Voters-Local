@@ -1,7 +1,7 @@
 """Command-line interface for NV Local voter education tool.
 
 This module provides the CLI entry point using Rich for formatted console output.
-It prompts the user for a city name, invokes the pipeline, and displays the
+It system_prompts the user for a city name, invokes the pipeline, and displays the
 resulting markdown report in a formatted panel.
 
 Key function:

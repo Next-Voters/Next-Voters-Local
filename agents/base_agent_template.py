@@ -6,7 +6,7 @@ using LangGraph.
 
 Key class:
     BaseReActAgent: ReAct-style agent with reflection context management.
-                    Supports dynamic system prompts, configurable LLM settings,
+                    Supports dynamic system system_prompts, configurable LLM settings,
                     and automatic reflection accumulation in agent state.
 
 The agent builds a LangGraph StateGraph with call_model and tool_node nodes,
