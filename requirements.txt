@@ -10,3 +10,5 @@ fastapi
 uvicorn
 redis
 python-multipart
+pydantic
+requests
