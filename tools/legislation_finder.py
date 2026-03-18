@@ -2,79 +2,70 @@
 
 Contains: web_search, reliability_analysis.
 All tools return Command objects to update LangGraph state.
+
+Uses the official Brave Search MCP server (via Smithery) with Goggles.
 """
 
-import os
 import json
 from typing import Annotated, Any
 
-import requests
-from dotenv import load_dotenv
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool, InjectedToolCallId
-from langchain_openai import ChatOpenAI
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from utils.prompts import reliability_judgment_prompt
-from utils.wikidata_client import search_entity, get_org_classification
-from utils.helper import extract_json
+from config.system_prompts import reliability_judgment_prompt
+from utils.tools import search_entity, get_org_classification
+from utils.mcp.brave_client import search_legislation, extract_search_results
+from utils.json_utils import extract_json
+from utils.llm import get_mini_llm
 
-load_dotenv()
-mini_model = ChatOpenAI(
-    model="gpt-4o-mini", temperature=0.0, max_tokens=1500, timeout=30
-)
+mini_model = get_mini_llm()
+
 
 @tool
-def web_search(
+async def web_search(
     query: str,
     tool_call_id: Annotated[str, InjectedToolCallId],
+    city: Annotated[str, InjectedState("city")],
     max_results: int = 5,
 ) -> Command:
     """Search the web for legislation related to a specific municipality or topic.
 
-    Uses the SerpApi to find recent, relevant legislation pages.
+    Uses the Brave Search MCP with Goggles optimized for legislation search.
+    Prioritizes official government sites, legislative databases, and authoritative
+    news sources. Filters out social media, blogs, and opinion pieces.
 
     Args:
-        query: The search query — e.g. "recent Austin city council bylaws 2026".
+        query: The search query — e.g. "Austin city council bylaws March 2026" or
+               "municipal ordinance zoning city council passed".
         tool_call_id: Injected by LangGraph — used to associate the ToolMessage.
+        city: The city to find legislation for (injected from state).
         max_results: Maximum number of results to return (default 5).
 
     Returns:
         A Command object that updates the state with search results.
     """
-    serp_api_key = os.getenv("SERP_API_KEY")
-
-    if not serp_api_key:
-        raise Exception("SERP API Key is invalid")
-
     try:
-        response = requests.get(
-            "https://serpapi.com/search",
-            params={
-                "q": query,
-                "num": max_results,
-                "api_key": serp_api_key,
-                "engine": "google",
-            },
-            timeout=30,
+        raw_results = await search_legislation(
+            query=query,
+            city=city,
+            max_results=max_results,
         )
-        response.raise_for_status()
-        data = response.json()
 
-        results = data.get("organic_results", [])
+        results = extract_search_results(raw_results)
 
         raw_legislation_sources = []
-        for result in results[:max_results]:
+        for result in results:
             raw_legislation_sources.append(
                 {
-                    "organization": result.get("source", "Unknown"),
-                    "url": result.get("link", "N/A"),
+                    "organization": result.get("title", "Unknown"),
+                    "url": result.get("url", "N/A"),
                 }
             )
 
         summary = (
-            f"Web search for '{query}' returned {len(raw_legislation_sources)} result(s):\n"
+            f"Web search for '{query}' (city: {city}) returned {len(raw_legislation_sources)} result(s):\n"
             + "\n".join(
                 f"  - {s['organization']}: {s['url']}" for s in raw_legislation_sources
             )
@@ -92,6 +83,13 @@ def web_search(
             }
         )
 
+    except ValueError as e:
+        error_msg = f"Brave Search API key not configured: {e}"
+        return Command(
+            update={
+                "messages": [ToolMessage(content=error_msg, tool_call_id=tool_call_id)],
+            }
+        )
     except Exception as e:
         error_msg = f"Web search failed: {e}"
         return Command(
@@ -149,9 +147,13 @@ def reliability_analysis(
         wikidata_context = {"label": org_name, "description": "Not found on Wikidata"}
 
         if org_name and org_name != "Unknown":
-            entity_id = search_entity(org_name)
-            if entity_id:
-                wikidata_context = get_org_classification(entity_id)
+            try:
+                entity_id = search_entity(org_name)
+                if entity_id:
+                    wikidata_context = get_org_classification(entity_id)
+            except Exception as e:
+                print(f"[WARN] Wikidata lookup failed for {org_name}: {e}")
+                wikidata_context = {"label": org_name, "description": "Lookup failed"}
 
         sources_with_context.append(
             {

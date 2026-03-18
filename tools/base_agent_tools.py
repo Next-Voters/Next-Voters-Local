@@ -2,22 +2,17 @@
 
 import json
 from typing import Annotated
-from dotenv import load_dotenv
 
 from langchain_core.messages import BaseMessage, ToolMessage
 from langchain_core.tools import tool, InjectedToolCallId
-from langchain_openai import ChatOpenAI
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from utils.models import ReflectionEntry
-from utils.prompts import reflection_prompt
+from utils.schemas import ReflectionEntry
+from utils.llm import get_mini_llm
+from config.system_prompts import reflection_prompt
 
-load_dotenv()
-
-_mini_model = ChatOpenAI(
-    model="gpt-5-mini", temperature=0.0, max_tokens=1500, timeout=30
-)
+_mini_model = get_mini_llm()
 
 
 @tool

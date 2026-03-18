@@ -1,15 +1,26 @@
-from typing import Callable, Union, TypeVar, Type
-from dotenv import load_dotenv
+"""Base ReAct agent template for NV Local AI agents.
 
-from langchain_openai import ChatOpenAI
+This module provides the BaseReActAgent class that all NV Local agents inherit from.
+It handles reflection handling, tool node setup, and ReAct agent graph construction
+using LangGraph.
+
+Key class:
+    BaseReActAgent: ReAct-style agent with reflection context management.
+                    Supports dynamic system system_prompts, configurable LLM settings,
+                    and automatic reflection accumulation in agent state.
+
+The agent builds a LangGraph StateGraph with call_model and tool_node nodes,
+implementing the ReAct (Reason + Act) pattern for tool-augmented reasoning.
+"""
+
+from typing import Callable, Union, TypeVar, Type
+
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 
-from utils.models import ReflectionEntry
-from utils.typed_dicts import BaseAgentState
+from utils.schemas import ReflectionEntry, BaseAgentState
+from utils.llm import get_llm
 from tools.base_agent_tools import reflection_tool
-
-load_dotenv()
 
 StateType = TypeVar("StateType")
 
@@ -44,7 +55,7 @@ class BaseReActAgent:
         self.tools = [reflection_tool] + tools
         self.system_prompt = system_prompt
 
-        self.model = ChatOpenAI(
+        self.model = get_llm(
             model=model_name,
             temperature=temperature,
             max_tokens=max_tokens,

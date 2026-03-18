@@ -1,11 +1,11 @@
-"""This includes all typed dictionaries used by the product within multiple applications such as the states for Langgraph"""
+"""Typed dictionaries for LangGraph agent states."""
 
 from typing import NotRequired, Annotated, TypedDict
 
 import operator
 
 from langchain_core.messages import BaseMessage
-from utils.models import ReflectionEntry, WriterOutput
+from utils.schemas.pydantic import ReflectionEntry, WriterOutput
 
 
 class BaseAgentState(TypedDict):
@@ -40,7 +40,7 @@ class LegislationContent(TypedDict):
 
 
 class IndividualStatementSummary(TypedDict):
-    """The information about a statement made by a politician for a specific legislative source. Summary must be short (2-3 sentences MAX)"""
+    """The information about a statement made by a politician for a specific legislative source."""
 
     source: str
     summary: str
@@ -63,3 +63,32 @@ class ChainData(TypedDict):
     politician_public_statements: NotRequired[list[PoliticianStatementSummary]]
     legislation_summary: NotRequired[WriterOutput]
     markdown_report: NotRequired[str]
+
+
+class PoliticalFigure(TypedDict):
+    """A political figure found by the political_figure_finder tool."""
+
+    name: str
+    position: str
+    party: NotRequired[str]
+    jurisdiction: str
+    source_url: NotRequired[str]
+
+
+class PoliticalCommentary(TypedDict):
+    """Unified political commentary with politician name, source URL, and extracted comment."""
+
+    politician: str
+    source_url: str
+    comment: str
+
+
+class PoliticalCommentaryState(BaseAgentState):
+    """Agent-specific state for the political commentary agent."""
+
+    city: NotRequired[str]
+    country: NotRequired[str]
+    political_figures: NotRequired[Annotated[list[PoliticalFigure], operator.add]]
+    political_commentary: NotRequired[
+        Annotated[list[PoliticalCommentary], operator.add]
+    ]
