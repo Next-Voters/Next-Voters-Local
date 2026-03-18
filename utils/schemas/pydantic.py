@@ -22,19 +22,6 @@ class ReflectionEntry(BaseModel):
     )
 
 
-class IndividualReliabilityAnalysis(BaseModel):
-    """Reliability judgment for a single source."""
-
-    score: Optional[str] = Field(
-        default=None,
-        description="Assign a score on how reliable the source is. Look for .edu .gov and city sources like brampton.ca when giving a score. Create a bias towards government ran websites to ensure non-partisian involvement.",
-    )
-    rationale: Optional[str] = Field(
-        default=None,
-        description="Explain your choice for the scoring in 250 characters or less",
-    )
-
-
 class WriterOutput(BaseModel):
     """Structured reflection output produced by the reflection tool."""
 

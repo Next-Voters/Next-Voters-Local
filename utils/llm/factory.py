@@ -11,7 +11,6 @@ from .config import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
     MINI_LLM_CONFIG,
-    AGENT_LLM_CONFIG,
 )
 
 
@@ -37,16 +36,6 @@ def get_mini_llm(**kwargs) -> ChatOpenAI:
         temperature=MINI_LLM_CONFIG["temperature"],
         max_tokens=MINI_LLM_CONFIG["max_tokens"],
         timeout=MINI_LLM_CONFIG["timeout"],
-        **kwargs,
-    )
-
-
-def get_agent_llm(**kwargs) -> ChatOpenAI:
-    return get_llm(
-        model=AGENT_LLM_CONFIG["model"],
-        temperature=AGENT_LLM_CONFIG["temperature"],
-        max_tokens=AGENT_LLM_CONFIG["max_tokens"],
-        timeout=AGENT_LLM_CONFIG["timeout"],
         **kwargs,
     )
 

@@ -21,16 +21,7 @@ from utils.tools import (
     fetch_american_political_figures,
 )
 from utils.mcp.brave_client import search_political_content, extract_search_results
-from utils.mcp.twitter_client import (
-    search_tweets,
-    get_user_by_username,
-    extract_tweet_results,
-    get_twitter_credentials,
-    search_user_and_tweets,
-    validate_twitter_handle,
-    sanitize_search_context,
-    is_error_response,
-)
+from utils.mcp.twitter_client import search_user_and_tweets
 from utils.llm import get_mini_llm
 
 mini_model = get_mini_llm()
@@ -306,13 +297,11 @@ async def search_political_social_media(
             }
         )
 
-    safe_context = sanitize_search_context(research_context)
-
     try:
         result = await search_user_and_tweets(
             politician_name=politician,
             city=city,
-            research_context=safe_context,
+            research_context=research_context,
             max_results=max_results,
         )
 

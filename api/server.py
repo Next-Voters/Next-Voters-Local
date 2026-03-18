@@ -13,7 +13,7 @@ The server uses the task_store module for Redis-backed task state management.
 """
 
 import os
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import TimeoutError
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv

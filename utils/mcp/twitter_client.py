@@ -22,6 +22,8 @@ from typing import Any
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from utils.mcp._shared import parse_mcp_result
+
 logger = logging.getLogger(__name__)
 
 SMITHERY_TWITTER_URL = "https://server.smithery.ai/@twitter/mcp"
@@ -137,34 +139,6 @@ async def get_twitter_session():
         async with ClientSession(read, write) as session:
             await session.initialize()
             yield session
-
-
-def parse_mcp_result(result: Any) -> dict[str, Any]:
-    """Safely parse MCP tool result.
-
-    Args:
-        result: Raw result from MCP session.call_tool()
-
-    Returns:
-        Parsed dict or error dict
-    """
-    try:
-        if hasattr(result, "content") and result.content:
-            first_content = result.content[0]
-            if hasattr(first_content, "text"):
-                text_content = first_content.text
-            else:
-                return {"error": "Unexpected content type", "raw": str(result)}
-        elif hasattr(result, "text"):
-            text_content = result.text
-        else:
-            text_content = str(result) if result else "{}"
-
-        return json.loads(text_content)
-    except json.JSONDecodeError as e:
-        return {"error": f"JSON parse failed: {e}", "raw": text_content}
-    except Exception as e:
-        return {"error": f"Failed to parse result: {e}", "raw": str(result)}
 
 
 def is_error_response(response: dict[str, Any]) -> tuple[bool, str]:
@@ -319,8 +293,7 @@ async def search_user_and_tweets(
 
         is_err, _ = is_error_response(user_result)
         if not is_err:
-            user_info = extract_user_info(user_result)
-            if user_info:
+            if extract_user_info(user_result):
                 verified_username = sanitized
                 logger.info(
                     f"Found verified Twitter account: @{verified_username} for {politician_name}"
@@ -335,7 +308,7 @@ async def search_user_and_tweets(
             username=verified_username, max_results=max_results
         )
 
-        is_err, err_msg = is_error_response(tweets_result)
+        is_err, _ = is_error_response(tweets_result)
         if not is_err:
             user_tweets = extract_tweet_results(tweets_result)
             if user_tweets:
