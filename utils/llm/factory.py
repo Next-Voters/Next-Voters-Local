@@ -1,7 +1,10 @@
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
-from typing import Optional, Type
+from typing import Any, Optional, Type, TypeVar
 
 from pydantic import BaseModel
+
+T = TypeVar("T", bound=BaseModel)
 
 from .config import (
     DEFAULT_TEMPERATURE,
@@ -49,13 +52,13 @@ def get_agent_llm(**kwargs) -> ChatOpenAI:
 
 
 def get_structured_llm(
-    output_schema: Type[BaseModel],
+    output_schema: Type[T],
     model: str = "gpt-4o-mini",
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     timeout: int = DEFAULT_TIMEOUT,
     **kwargs,
-) -> ChatOpenAI:
+) -> Runnable[Any, T]:
     base_llm = get_llm(
         model=model,
         temperature=temperature,
