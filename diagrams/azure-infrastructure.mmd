@@ -1,0 +1,40 @@
+flowchart TD
+    subgraph Dev["Developer / CI"]
+        A[Push code to repo]
+        B[Build Docker image]
+    end
+
+    subgraph Azure["Azure Cloud"]
+        C[Azure Container Registry]
+        D[Azure Container Apps Environment]
+        E[Azure Container Apps Job]
+        F[Schedule Trigger\ncron in UTC]
+        G[Azure Key Vault]
+        H[Managed Identity]
+        I[Azure Monitor / Log Analytics]
+    end
+
+    subgraph Execution["Single Container Execution"]
+        J[Container starts]
+        K[Worker entrypoint]
+        L[Multi-city pipeline runs\none after another]
+        M[Container exits]
+    end
+
+    A --> B
+    B --> C
+    C --> E
+    G --> E
+    H --> E
+    F --> E
+    D --> E
+    E --> J
+    J --> K
+    K --> L
+    L --> M
+    M --> I
+    K --> I
+
+    style Dev fill:#e6f3ff,stroke:#1a73e8,stroke-width:1px
+    style Azure fill:#f3f0ff,stroke:#7b1fa2,stroke-width:1px
+    style Execution fill:#f3f0ff,stroke:#7b1fa2,stroke-width:1px

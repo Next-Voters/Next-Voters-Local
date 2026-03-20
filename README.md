@@ -68,124 +68,19 @@
    Enter a city name (e.g., "Austin", "Toronto") to investigate recent municipal legislation.
 
 ---
-
-## 📖 How It Works
-
-### The Pipeline
-
-Next Voters Local operates as a **sequential multi-agent system** where each step refines and validates output from the previous stage:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Agent 1: Legislation Finder (ReAct)                             │
-│ • Web search for recent city council legislation                │
-│ • Validate source reliability via Wikidata organization lookup  │
-│ • Filter for authoritative sources only                         │
-└─────────────────────┬───────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Agent 2: Scraper Builder (ReAct)                                │
-│ • Generate & execute Python code to scrape legislation details  │
-│ • Extract text from arbitrary HTML structures                   │
-│ • Self-correct broken scrapers via debugging                    │
-└─────────────────────┬───────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Agent 3: Politician Position Finder (ReAct)                     │
-│ • Search for politician statements on each legislation item     │
-│ • Extract from press releases, floor speeches, vote records     │
-│ • Assess relevance & decide when to stop searching             │
-└─────────────────────┬───────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ LLM-as-a-Defense: Name Anonymizer (LLM)                         │
-│ • Use language model to identify & replace politician names     │
-│ • Generate anonymized labels (Legislator A, B, C, ...)         │
-│ • Maintain consistent mapping throughout document              │
-│ • Ensures bias analysis never sees real identities             │
-└─────────────────────┬───────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Rhetoric Neutralizer (LLM + Two-Pass Self-Debiasing)           │
-│ • Extract claims from anonymized statements                     │
-│ • Classify rhetorical devices & bias signals                    │
-│ • Reprompt LLM to self-correct using Gallegos et al. method    │
-└─────────────────────┬───────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Judge (Isolated LLM Call)                                       │
-│ • Stateless evaluation of rhetoric against 4 criteria:          │
-│   - Identity Inference Prohibition (HARD CONSTRAINT)           │
-│   - Grounding Violations (claims must cite sources)             │
-│   - Tonal Bias (partisan language, "should" statements)         │
-│   - Unsupported Inferences                                      │
-│ • Max 2 retries on soft failure; quarantine on hard failure    │
-└─────────────────────┬───────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Research Writer (LLM)                                           │
-│ • Synthesize all upstream data                                  │
-│ • Cross-reference sources                                       │
-│ • Produce structured research notes                             │
-└─────────────────────┬───────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Presentation LLM                                                │
-│ • Generate clean, user-facing factual summary                   │
-│ • Simple language, no jargon                                    │
-│ • One-sentence takeaways                                        │
-└─────────────────────┬───────────────────────────────────────────┘
-                      ↓
-              📊 Final Output
-```
-
 ### Key Design Principles
 
-1. **Minimal Agency** — ReAct agents only where unpredictable targets or retry loops exist. Everything else is a deterministic LLM call or pure code.
+1. **Minimal Agency** — ReAct agents only where unpredictable targets or retry loops exist such as during legislative activity discovery phase. Everything else is a deterministic LLM call or pure code.
 2. **No Supervision** — Sequential DAG, no supervisor node. Routing is always the same; routing costs would waste API calls.
 3. **Judge Isolation** — The Judge never sees real names, never sees graph state. Its narrow scope is its strength.
 4. **Source Authority** — Only `.gov`, `.gc.ca`, and Wikidata-validated organizations pass reliability checks. No blogs, no opinion sites, no partisan media.
 5. **Cite or Reject** — Every claim must cite its source. Unsupported inferences are rejected.
 
----
-
-## 🏗️ Architecture
-
-### Project Structure
-
-```
-Next-Voters-Local/
-├── main.py                          # Orchestration graph & entry point
-├── requirements.txt                 # Python dependencies
-├── .env.example                     # API key template
-├── README.md                        # This file
-│
-├── agents/
-│   ├── __init__.py
-│   └── legislation_finder.py        # Agent 1: Legislation discovery & validation
-│
-├── tools/
-│   ├── __init__.py
-│   └── legislation_finder.py        # Tools for Agent 1 (web_search, reflection, reliability_analysis)
-│
-├── utils/
-│   ├── __init__.py
-│   ├── models.py                    # Shared Pydantic models
-│   ├── prompts.py                   # System prompts for all LLM calls
-│   └── wikidata_client.py           # Wikidata API wrapper for org lookup
-│
-├── diagrams/
-│   └── ai-politician-accountability.mmd  # Architecture diagram
-│
-└── .claude/
-    └── CLAUDE.md                    # Development guide & project config
-```
-
 ### Technology Stack
 
 | Component | Technology |
 |-----------|-----------|
-| **Orchestration** | LangGraph 1.0.10 (StateGraph DAG) |
+| **Orchestration** | LangChain Expression Language |
 | **LLM Provider** | OpenAI (GPT-4, GPT-4o-mini) |
 | **LLM Framework** | LangChain 1.1+ |
 | **Web Search** | Tavily Search API |
@@ -219,20 +114,6 @@ This system is designed for **informational purposes only**. Users should:
 - ✅ Understand this tool supplements, not replaces, civic engagement
 - ❌ Not rely on a single summary for critical decisions
 
----
-
-## 📝 Contributing
-
-- ✅ **Agent 1: Legislation Finder** — Complete with Wikidata source validation
-- 🚧 **Agent 2: Scraper Builder** — Stub (generates code, needs REPL integration)
-- 🚧 **Agent 3: Politician Position Finder** — Stub (search & relevance filtering)
-- 🚧 **Name Anonymizer (LLM-as-a-Defense)** — Not yet implemented
-- 🚧 **Rhetoric Neutralizer** — Not yet implemented
-- 🚧 **Judge** — Not yet implemented
-- 🚧 **Vector DB & RAG Chatbot** — Downstream work
-
----
-
 ## 📝 Contributing
 
 Contributions are welcome! Please follow these guidelines:
@@ -242,6 +123,8 @@ Contributions are welcome! Please follow these guidelines:
 3. **Make your changes** with clear commit messages
 4. **Test** locally: `python main.py`
 5. **Submit a Pull Request** with a description of changes
+
+#### ⚠️ Note: You are not entitled to payment for your services. You are also not affiliated with Next Voters, and you may not claim any titles of employment within the organization. 
 
 ### Reporting Issues
 
@@ -289,6 +172,6 @@ This project is licensed under the [MIT License](LICENSE) — see the LICENSE fi
 
 **Empowering voters with factual, bias-resistant information about local legislation.**
 
-Made with ❤️ for democratic accountability
+Made with ❤️ by Next Voters
 
 </div>
