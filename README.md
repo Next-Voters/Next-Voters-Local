@@ -63,9 +63,9 @@
 
 5. **Run the system**
    ```bash
-   NV_CITY="Austin" python main.py
+   python main.py
    ```
-   Provide your target municipality either via the `--city` / `-c` flag or by setting `NV_CITY`. The markdown report prints to stdout, `-o <path>` saves it to a file, and `-q` suppresses the printed output.
+   The pipeline runs three predefined municipalities in parallel threads: `Toronto`, `New York City`, and `San Diego`. The markdown report prints to stdout, `-o <path>` saves it to a file, and `-q` suppresses the printed output.
 
 ### 🐳 Container
 
@@ -73,11 +73,11 @@
   ```bash
   docker build -t next-voters-local -f docker/Dockerfile .
   ```
-- Run the container with a city override:
+- Run the container:
   ```bash
-  docker run --rm -e NV_CITY="Toronto" next-voters-local
+  docker run --rm next-voters-local
   ```
-The image executes `main.py` by default, so the pipeline runs automatically and streams the markdown summary to stdout.
+The image executes `main.py` by default, so the pipeline runs `Toronto`, `New York City`, and `San Diego` in parallel threads and streams the markdown summary to stdout.
 
 ---
 ### Key Design Principles
