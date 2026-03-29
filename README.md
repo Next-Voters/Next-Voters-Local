@@ -1,4 +1,16 @@
-# Next Voters Local
+<div align="center">
+
+  <h1>Next Voters Local</h1>
+  <p><strong>Hold your city accountable to their actions.</strong></p>
+  <p>AI agents that research municipal legislation so you don't have to.</p>
+  <p>
+    <a href="https://github.com/Next-Voters/Local/stargazers"><img src="https://img.shields.io/github/stars/Next-Voters/Local" alt="Stars" /></a>
+    <a href="https://github.com/Next-Voters/Local/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Next-Voters/Local" alt="License" /></a>
+    <a href="https://github.com/Next-Voters/Local/issues"><img src="https://img.shields.io/github/issues/Next-Voters/Local" alt="Issues" /></a>
+  </p>
+</div>
+
+---
 
 Next Voters uses AI agents to find, research, and summarize municipal legislation — making government information accessible to communities that cannot afford the time or resources to track what their local officials are doing.
 
