@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -13,8 +14,12 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     load_dotenv = None
 
-from data import SUPPORTED_CITIES
+from utils.supabase_client import get_supported_cities_from_db
+from global_data.build_city_reports_dict import build_city_reports_dict
 from pipelines.nv_local import run_pipeline
+from pipelines.node.email_dispatcher import dispatch_emails_to_subscribers
+
+logger = logging.getLogger(__name__)
 
 
 def run_pipeline_instances(
@@ -75,7 +80,7 @@ def render_pipeline_reports_markdown(
 
 
 def run_pipelines_for_cities(
-    cities: Sequence[str] = SUPPORTED_CITIES,
+    cities: Sequence[str],
 ) -> dict[str, dict[str, Any]]:
     """Execute the NV Local pipeline concurrently for multiple cities."""
 
@@ -84,18 +89,11 @@ def run_pipelines_for_cities(
 
 def render_city_reports_markdown(
     results_by_city: Mapping[str, dict[str, Any]],
-    cities: Sequence[str] = SUPPORTED_CITIES,
+    cities: Sequence[str],
 ) -> str:
     """Render city pipeline results as a markdown document."""
 
     return render_pipeline_reports_markdown(results_by_city, cities)
-
-
-def _parse_cities(env_value: str | None) -> tuple[str, ...]:
-    if not env_value:
-        return SUPPORTED_CITIES
-    cities = tuple(city.strip() for city in env_value.split(",") if city.strip())
-    return cities or SUPPORTED_CITIES
 
 
 def _env_flag(name: str) -> bool:
@@ -107,10 +105,21 @@ def main() -> int:
     if load_dotenv is not None:
         load_dotenv()
 
-    cities = _parse_cities(os.getenv("NV_CITIES"))
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)
+
     output_path = os.getenv("NV_OUTPUT_PATH")
     quiet = _env_flag("NV_QUIET")
 
+    try:
+        # Get supported cities from Supabase (no env var fallback)
+        cities = get_supported_cities_from_db()
+        logger.info(f"Running pipeline for {len(cities)} cities: {cities}")
+    except Exception as e:
+        logger.error(f"Failed to get supported cities: {e}")
+        return 1
+
+    # Run pipelines for all cities
     results_by_city = run_pipelines_for_cities(cities)
     report = render_city_reports_markdown(results_by_city, cities)
 
@@ -121,6 +130,16 @@ def main() -> int:
 
     if not quiet:
         print(report)
+
+    # Build reports dictionary and dispatch emails
+    try:
+        reports_by_city = build_city_reports_dict(results_by_city)
+        logger.info("Dispatching emails to subscribers...")
+        dispatch_emails_to_subscribers(reports_by_city)
+    except Exception as e:
+        logger.error(f"Failed to dispatch emails: {e}")
+        # Don't fail the entire job if email dispatch fails
+        logger.info("Continuing despite email dispatch failure")
 
     errors = {
         city: result.get("error")

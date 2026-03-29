@@ -1,4 +1,3 @@
-from data import SUPPORTED_CITIES
 from pipelines.nv_local import (
     chain,
     run_pipeline,
@@ -22,7 +21,6 @@ from pipelines.node.email_sender import email_sender_chain, send_email_to_subscr
 
 __all__ = [
     "chain",
-    "SUPPORTED_CITIES",
     "run_pipeline",
     "run_legislation_finder",
     "run_content_retrieval",

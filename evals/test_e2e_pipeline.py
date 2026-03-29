@@ -306,9 +306,10 @@ class TestSupportedCities:
     @patch("pipelines.nv_local.chain.invoke")
     def test_supported_cities(self, mock_invoke: MagicMock, city: str):
         """Test pipeline with each supported city."""
-        from data import SUPPORTED_CITIES
+        # Cities are now queried from Supabase, but we test with hardcoded values
+        supported_cities = ["Toronto", "New York City", "San Diego"]
 
-        assert city in SUPPORTED_CITIES
+        assert city in supported_cities
 
         mock_invoke.return_value = {
             "city": city,
@@ -332,14 +333,16 @@ class TestPipelineRendering:
         sample_markdown_report: str,
     ):
         """Test rendering multiple city reports."""
-        mock_run.return_value = {
+        results = {
             "Toronto": {"markdown_report": sample_markdown_report},
             "NYC": {"markdown_report": "# NYC Report"},
         }
+        cities = ["Toronto", "NYC"]
+        mock_run.return_value = results
 
         from runners.run_container_job import render_city_reports_markdown
 
-        result = render_city_reports_markdown(mock_run.return_value)
+        result = render_city_reports_markdown(results, cities)
 
         assert "## Toronto" in result
         assert "## NYC" in result
@@ -347,16 +350,18 @@ class TestPipelineRendering:
     @patch("runners.run_container_job.run_pipelines_for_cities")
     def test_render_with_errors(self, mock_run: MagicMock):
         """Test rendering with pipeline errors."""
-        mock_run.return_value = {
+        results = {
             "Toronto": {
                 "error": "Test error",
                 "markdown_report": "",
             },
         }
+        cities = ["Toronto"]
+        mock_run.return_value = results
 
         from runners.run_container_job import render_city_reports_markdown
 
-        result = render_city_reports_markdown(mock_run.return_value)
+        result = render_city_reports_markdown(results, cities)
 
         assert "**Error:**" in result
 

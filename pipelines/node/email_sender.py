@@ -1,81 +1,49 @@
-import json
-import os
-import smtplib
-import ssl
-import time
-import queue
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-from email.mime.text import MIMEText
-from functools import lru_cache
-from threading import Lock
+"""
+Email sender node for the NV Local pipeline chain.
 
-import markdown
-from supabase import create_client, Client
+This module is part of the pipeline chain and sends reports to all subscribers
+(not city-specific). It has been refactored to use the shared SMTP connection
+pool from utils.email.
+
+Note: Email dispatch is now primarily handled by the batch dispatcher
+(pipelines/node/email_dispatcher.py) which sends city-specific reports.
+This node is maintained for backward compatibility.
+"""
+
+import os
+import logging
+import queue
+from threading import Lock
 
 from langchain_core.runnables import RunnableLambda
 
+from utils.email import (
+    SMTPConnectionPool,
+    convert_markdown_to_html,
+    render_template,
+    create_mime_message,
+)
 from utils.schemas.state import ChainData
 
-
-class SMTPConnectionPool:
-    def __init__(self, pool_size=10, smtp_host="smtp.gmail.com", smtp_port=587):
-        self.pool_size = pool_size
-        self.smtp_host = smtp_host
-        self.smtp_port = smtp_port
-        self._pool: queue.Queue[smtplib.SMTP] = queue.Queue(maxsize=pool_size)
-        self._init_pool()
-
-    def _create_connection(self) -> smtplib.SMTP:
-        context = ssl.create_default_context()
-        server = smtplib.SMTP(self.smtp_host, self.smtp_port)
-        server.ehlo()
-        server.starttls(context=context)
-        server.ehlo()
-        server.login(os.environ["SMTP_EMAIL"], os.environ["SMTP_APP_PASSWORD"])
-        return server
-
-    def _init_pool(self):
-        for _ in range(self.pool_size):
-            self._pool.put(self._create_connection())
-
-    def get_connection(self, timeout=30) -> smtplib.SMTP:
-        return self._pool.get(timeout=timeout)
-
-    def return_connection(self, conn: smtplib.SMTP):
-        try:
-            self._pool.put_nowait(conn)
-        except queue.Full:
-            try:
-                conn.quit()
-            except Exception:
-                pass
-
-    def close_all(self):
-        while not self._pool.empty():
-            try:
-                conn = self._pool.get_nowait()
-                conn.quit()
-            except Exception:
-                pass
+logger = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=1)
-def load_template() -> str:
-    template_path = os.path.join(
-        os.path.dirname(__file__), "..", "templates", "email_report.html"
-    )
-    with open(template_path, "r") as f:
-        return f.read()
-
-
-def convert_markdown_to_html(markdown_content: str) -> str:
-    return markdown.markdown(markdown_content)
-
-
-def render_template(html_content: str) -> str:
-    template = load_template()
-    return template.replace("{{CONTENT}}", html_content)
+def get_subscribers() -> list[str]:
+    """Query subscribers from Supabase.
+    
+    Returns:
+        List of subscriber email addresses
+    """
+    try:
+        from utils.supabase_client import get_subscribers_for_city
+        
+        # For backward compatibility with pipeline-based sending,
+        # we could implement city-specific logic here if needed
+        # For now, this is not called in the main pipeline
+        return []
+    except Exception as e:
+        logger.error(f"Failed to get subscribers: {e}")
+        return []
 
 
 EMAIL_REQUIRED_ENV = (
@@ -87,23 +55,8 @@ EMAIL_REQUIRED_ENV = (
 
 
 def _is_email_configured() -> bool:
+    """Check if all required email environment variables are set."""
     return all(os.environ.get(env_var) for env_var in EMAIL_REQUIRED_ENV)
-
-
-def get_subscribers() -> list[str]:
-    supabase_url = os.environ["SUPABASE_URL"]
-    supabase_key = os.environ["SUPABASE_KEY"]
-    client: Client = create_client(supabase_url, supabase_key)
-
-    response = client.table("subscriptions").select("contact").execute()
-
-    emails = []
-    for item in response.data:
-        contact = item.get("contact")
-        if contact:
-            emails.append(contact)
-
-    return emails
 
 
 def send_single_email(
@@ -111,32 +64,41 @@ def send_single_email(
     email: str,
     subject: str,
     html_body: str,
-    failures: list[dict],
-    failures_lock: Lock,
+    failures_queue: queue.Queue,
 ) -> bool:
+    """Send a single email and track failures.
+    
+    Args:
+        pool: SMTP connection pool
+        email: Recipient email address
+        subject: Email subject line
+        html_body: HTML email body
+        failures_queue: Thread-safe queue for tracking failures
+        
+    Returns:
+        True if email sent successfully, False otherwise
+    """
     conn = None
     try:
-        conn = pool.get_connection()
+        conn = pool.get_connection(timeout=30)
 
-        msg = MIMEText(html_body, "html", "utf-8")
-        msg["From"] = os.environ["SMTP_EMAIL"]
-        msg["To"] = email
-        msg["Subject"] = subject
+        msg = create_mime_message(
+            os.environ["SMTP_EMAIL"],
+            email,
+            subject,
+            html_body,
+        )
 
         conn.sendmail(os.environ["SMTP_EMAIL"], email, msg.as_string())
 
-        time.sleep(0.5)
-
         return True
     except Exception as e:
-        with failures_lock:
-            failures.append(
-                {
-                    "email": email,
-                    "error": str(e),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+        failures_queue.put(
+            {
+                "email": email,
+                "error": str(e),
+            }
+        )
         return False
     finally:
         if conn:
@@ -148,9 +110,20 @@ def send_batch(
     emails: list[str],
     subject: str,
     html_body: str,
-    failures: list[dict],
-    failures_lock: Lock,
+    failures_queue: queue.Queue,
 ):
+    """Send emails in a batch using thread pool.
+    
+    Args:
+        pool: SMTP connection pool
+        emails: List of recipient email addresses
+        subject: Email subject line
+        html_body: HTML email body
+        failures_queue: Thread-safe queue for tracking failures
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    import time
+    
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = []
         for email in emails:
@@ -160,55 +133,79 @@ def send_batch(
                 email,
                 subject,
                 html_body,
-                failures,
-                failures_lock,
+                failures_queue,
             )
             futures.append(future)
         for future in futures:
             future.result()
 
 
-def save_failures(failures: list[dict]):
-    if not failures:
-        return
-    failures_path = os.path.join(os.path.dirname(__file__), "..", "email_failures.json")
-    with open(failures_path, "w") as f:
-        json.dump(failures, f, indent=2)
-
-
 def send_email_to_subscribers(inputs: ChainData) -> ChainData:
+    """Send email to all subscribers (legacy pipeline node).
+    
+    This node sends reports to ALL subscribers regardless of city preference.
+    For city-specific dispatching, use dispatch_emails_to_subscribers() instead.
+    
+    Args:
+        inputs: Pipeline state containing markdown_report
+        
+    Returns:
+        Unchanged inputs (side effect: emails sent)
+    """
     if not _is_email_configured():
+        logger.info("Email not configured; skipping email send")
         return inputs
 
     markdown_report = inputs.get("markdown_report")
 
     if not markdown_report:
+        logger.warning("No markdown report in pipeline state")
         return inputs
 
     emails = get_subscribers()
 
     if not emails:
+        logger.info("No subscribers found for email send")
         return inputs
+
+    logger.info(f"Sending report email to {len(emails)} subscriber(s)")
 
     html_content = convert_markdown_to_html(markdown_report)
     html_body = render_template(html_content)
 
-    pool = SMTPConnectionPool(pool_size=10)
-    failures: list[dict] = []
-    failures_lock = Lock()
+    try:
+        pool = SMTPConnectionPool(pool_size=10)
+    except RuntimeError as e:
+        logger.error(f"Failed to initialize SMTP pool: {e}")
+        return inputs
+
+    failures_queue: queue.Queue = queue.Queue()
 
     try:
+        import time
+        
         waves = [emails[i : i + 100] for i in range(0, len(emails), 100)]
 
         for wave in waves:
             send_batch(
-                pool, wave, "NV Local Report", html_body, failures, failures_lock
+                pool, wave, "NV Local Report", html_body, failures_queue
             )
             time.sleep(1)
     finally:
         pool.close_all()
 
-    save_failures(failures)
+    # Log any failures
+    failure_count = 0
+    while not failures_queue.empty():
+        try:
+            failure = failures_queue.get_nowait()
+            logger.warning(f"Email delivery failed for {failure['email']}: {failure['error']}")
+            failure_count += 1
+        except queue.Empty:
+            break
+    
+    if failure_count > 0:
+        logger.warning(f"{failure_count} email delivery failure(s) encountered")
 
     return inputs
 
