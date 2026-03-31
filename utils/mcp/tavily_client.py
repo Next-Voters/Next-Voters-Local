@@ -1,20 +1,31 @@
-"""Tavily Search client with profile-based customization.
+"""Tavily MCP client with profile-based customization.
 
-This module provides a simple, cloud-hosted search integration using Tavily.
+Search uses an MCP server (tavily_server.py) connected via stdio subprocess.
+Content extraction uses the tavily-python SDK directly.
 Profiles in config/search_profiles control query shaping and domain filters.
 """
 
 from __future__ import annotations
 
 import os
+import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-import httpx
 import yaml
+from mcp import ClientSession
+from mcp.client.stdio import StdioServerParameters, stdio_client
+from tavily import AsyncTavilyClient
 
-TAVILY_SEARCH_URL = "https://api.tavily.com/search"
+from utils.mcp._shared import parse_mcp_result
 
+_SERVER_PATH = str(Path(__file__).parent / "tavily_server.py")
+
+
+# ---------------------------------------------------------------------------
+# API key
+# ---------------------------------------------------------------------------
 
 def get_api_key() -> str:
     """Get Tavily API key from environment."""
@@ -27,6 +38,32 @@ def get_api_key() -> str:
     return api_key
 
 
+# ---------------------------------------------------------------------------
+# MCP session (stdio subprocess)
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def get_tavily_session():
+    """Get MCP session connected to the local Tavily server via stdio.
+
+    Launches tavily_server.py as a subprocess and communicates via stdin/stdout.
+    Session is properly cleaned up on exit.
+    """
+    server_params = StdioServerParameters(
+        command=sys.executable,
+        args=[_SERVER_PATH],
+        env={**os.environ, "TAVILY_API_KEY": get_api_key()},
+    )
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            yield session
+
+
+# ---------------------------------------------------------------------------
+# Profile-based query building
+# ---------------------------------------------------------------------------
+
 def load_search_profile(profile_name: str) -> dict[str, Any]:
     """Load search profile config from YAML file."""
     config_path = (
@@ -35,7 +72,6 @@ def load_search_profile(profile_name: str) -> dict[str, Any]:
         / "search_profiles"
         / f"{profile_name}.yaml"
     )
-
     if not config_path.exists():
         raise FileNotFoundError(f"Search profile not found: {config_path}")
 
@@ -75,42 +111,40 @@ def _build_query(query: str, city: str | None, profile: dict[str, Any]) -> str:
     return " ".join(p for p in parts if p)
 
 
+# ---------------------------------------------------------------------------
+# Search (via MCP)
+# ---------------------------------------------------------------------------
+
 async def search_with_profile(
     query: str,
     profile_name: str,
     max_results: int = 10,
     city: str | None = None,
 ) -> dict[str, Any]:
-    """Search Tavily using a named profile."""
+    """Search Tavily via MCP using a named profile."""
     profile = load_search_profile(profile_name)
-    api_key = get_api_key()
 
-    payload: dict[str, Any] = {
-        "api_key": api_key,
+    arguments: dict[str, Any] = {
         "query": _build_query(query=query, city=city, profile=profile),
+        "max_results": min(max_results, int(profile.get("max_results_cap", 20))),
         "search_depth": profile.get("search_depth", "basic"),
         "topic": profile.get("topic", "general"),
-        "max_results": min(max_results, int(profile.get("max_results_cap", 20))),
-        "include_answer": False,
-        "include_images": False,
-        "include_raw_content": False,
     }
 
     include_domains = profile.get("include_domains", [])
     exclude_domains = profile.get("exclude_domains", [])
     if isinstance(include_domains, list) and include_domains:
-        payload["include_domains"] = include_domains
+        arguments["include_domains"] = include_domains
     if isinstance(exclude_domains, list) and exclude_domains:
-        payload["exclude_domains"] = exclude_domains
+        arguments["exclude_domains"] = exclude_domains
 
     days = profile.get("days")
     if isinstance(days, int) and days > 0:
-        payload["days"] = days
+        arguments["days"] = days
 
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        response = await client.post(TAVILY_SEARCH_URL, json=payload)
-        response.raise_for_status()
-        return response.json()
+    async with get_tavily_session() as session:
+        result = await session.call_tool("tavily_search", arguments)
+        return parse_mcp_result(result)
 
 
 async def search_legislation(
@@ -145,11 +179,12 @@ async def search_political_content(
     )
 
 
-def extract_search_results(raw_results: dict[str, Any]) -> list[dict[str, str]]:
-    """Extract title/url/description from Tavily results.
+# ---------------------------------------------------------------------------
+# Result extraction helpers
+# ---------------------------------------------------------------------------
 
-    Keeps backward compatibility with the previous Brave-like output shape.
-    """
+def extract_search_results(raw_results: dict[str, Any]) -> list[dict[str, str]]:
+    """Extract title/url/description from Tavily results."""
     results = []
 
     if isinstance(raw_results, dict):
@@ -166,18 +201,26 @@ def extract_search_results(raw_results: dict[str, Any]) -> list[dict[str, str]]:
                     }
                 )
 
-        # Backward compatibility fallback
-        if not results:
-            web_results = raw_results.get("web", {}).get("results", [])
-            for result in web_results:
-                if not isinstance(result, dict):
-                    continue
-                results.append(
-                    {
-                        "title": str(result.get("title") or "Untitled"),
-                        "url": str(result.get("url") or ""),
-                        "description": str(result.get("description") or ""),
-                    }
-                )
-
     return results
+
+
+# ---------------------------------------------------------------------------
+# Extract (via tavily-python SDK — no MCP equivalent yet)
+# ---------------------------------------------------------------------------
+
+async def extract_url_content(urls: list[str]) -> dict[str, str]:
+    """Batch-extract page content for URLs using Tavily SDK.
+
+    Returns: dict mapping URL to extracted content (markdown format).
+    """
+    if not urls:
+        return {}
+
+    client = AsyncTavilyClient(api_key=get_api_key())
+    response = await client.extract(urls=urls, format="markdown")
+
+    return {
+        item["url"]: item["raw_content"]
+        for item in response.get("results", [])
+        if item.get("raw_content")
+    }
