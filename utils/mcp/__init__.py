@@ -1,9 +1,13 @@
-"""MCP client utilities for connecting to external MCP servers."""
+"""MCP/search client utilities for connecting to external services."""
 
-from utils.mcp.brave_client import (
-    get_brave_session,
-    load_goggles,
-    SMITHERY_BRAVE_SEARCH_URL,
+from utils.mcp.tavily_client import (
+    TAVILY_SEARCH_URL,
+    get_api_key,
+    load_search_profile,
+    search_with_profile,
+    search_legislation,
+    search_political_content,
+    extract_search_results,
 )
 from utils.mcp.twitter_client import (
     get_twitter_session,
@@ -20,9 +24,13 @@ from utils.mcp.twitter_client import (
 )
 
 __all__ = [
-    "get_brave_session",
-    "load_goggles",
-    "SMITHERY_BRAVE_SEARCH_URL",
+    "TAVILY_SEARCH_URL",
+    "get_api_key",
+    "load_search_profile",
+    "search_with_profile",
+    "search_legislation",
+    "search_political_content",
+    "extract_search_results",
     "get_twitter_session",
     "get_twitter_credentials",
     "search_tweets",

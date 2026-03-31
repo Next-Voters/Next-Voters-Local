@@ -1,0 +1,27 @@
+name: "Legislation Search"
+description: "Municipal legislation search profile with authoritative-source bias"
+query_prefix: "municipal ordinance city council legislation"
+query_suffix: "agenda minutes ordinance bylaw"
+append_city: true
+required_terms:
+  - "site:.gov"
+excluded_terms:
+  - "twitter.com"
+  - "x.com"
+  - "facebook.com"
+  - "instagram.com"
+  - "reddit.com"
+search_depth: "advanced"
+topic: "news"
+days: 45
+max_results_cap: 15
+include_domains:
+  - "legistar.com"
+  - "municode.com"
+exclude_domains:
+  - "twitter.com"
+  - "x.com"
+  - "facebook.com"
+  - "instagram.com"
+  - "medium.com"
+  - "substack.com"

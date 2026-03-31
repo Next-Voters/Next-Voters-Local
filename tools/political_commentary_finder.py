@@ -3,7 +3,7 @@
 Contains: political_figure_finder, search_political_commentary.
 All tools return Command objects to update LangGraph state.
 
-Uses the official Brave Search MCP server (via Smithery) with Goggles.
+Uses Tavily cloud search with profile-based customization.
 """
 
 from functools import lru_cache
@@ -21,7 +21,7 @@ from utils.tools import (
     fetch_canadian_political_figures,
     fetch_american_political_figures,
 )
-from utils.mcp.brave_client import search_political_content, extract_search_results
+from utils.mcp.tavily_client import search_political_content, extract_search_results
 from utils.mcp.twitter_client import search_user_and_tweets
 from utils.llm import get_mini_llm
 
@@ -156,7 +156,7 @@ async def search_political_commentary(
 ) -> Command:
     """Search for political commentary and extract the politician's statements.
 
-    Uses Brave Web Search MCP with Goggles to find authoritative political
+    Uses Tavily search with a political profile to find authoritative political
     content, then uses an LLM to extract the politician's actual commentary
     from each source. Returns unified results with politician name, source URL,
     and extracted comment.
@@ -231,7 +231,7 @@ async def search_political_commentary(
         )
 
     except ValueError as e:
-        error_msg = f"Brave Search API key not configured: {e}"
+        error_msg = f"Tavily API key not configured: {e}"
         return Command(
             update={
                 "political_commentary": [],
@@ -252,7 +252,7 @@ async def search_political_commentary(
 async def search_political_social_media(
     politician: str,
     city: Annotated[str, InjectedState("city")],
-    research_context: Annotated[str, InjectedState("research_notes", "")],
+    research_context: Annotated[str | None, InjectedState("research_notes")],
     tool_call_id: Annotated[str, InjectedToolCallId],
     max_results: int = 10,
 ) -> Command:
@@ -305,7 +305,7 @@ async def search_political_social_media(
         result = await search_user_and_tweets(
             politician_name=politician,
             city=city,
-            research_context=research_context,
+            research_context=research_context or "",
             max_results=max_results,
         )
 

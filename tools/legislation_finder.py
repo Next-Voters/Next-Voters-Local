@@ -3,7 +3,7 @@
 Contains: web_search, reliability_analysis.
 All tools return Command objects to update LangGraph state.
 
-Uses the official Brave Search MCP server (via Smithery) with Goggles.
+Uses Tavily cloud search with profile-based customization.
 """
 
 import json
@@ -17,7 +17,7 @@ from langgraph.types import Command
 
 from config.system_prompts import reliability_judgment_prompt
 from utils.tools import search_entity, get_org_classification
-from utils.mcp.brave_client import search_legislation, extract_search_results
+from utils.mcp.tavily_client import search_legislation, extract_search_results
 from utils.json_utils import extract_json
 from utils.llm import get_mini_llm
 
@@ -36,9 +36,8 @@ async def web_search(
 ) -> Command:
     """Search the web for legislation related to a specific municipality or topic.
 
-    Uses the Brave Search MCP with Goggles optimized for legislation search.
-    Prioritizes official government sites, legislative databases, and authoritative
-    news sources. Filters out social media, blogs, and opinion pieces.
+    Uses Tavily search with a legislation profile to prioritize official government
+    sites, legislative databases, and authoritative news sources.
 
     Args:
         query: The search query — e.g. "Austin city council bylaws March 2026" or
@@ -88,7 +87,7 @@ async def web_search(
         )
 
     except ValueError as e:
-        error_msg = f"Brave Search API key not configured: {e}"
+        error_msg = f"Tavily API key not configured: {e}"
         return Command(
             update={
                 "messages": [ToolMessage(content=error_msg, tool_call_id=tool_call_id)],
@@ -201,8 +200,47 @@ def reliability_analysis(
             }
         )
 
-    accepted = [j for j in judgments if j.get("accepted", False)]
-    rejected = [j for j in judgments if not j.get("accepted", False)]
+    if not isinstance(judgments, list):
+        summary = (
+            "Reliability analysis expected a list of judgments but received "
+            f"{type(judgments).__name__}. Rejecting all sources."
+        )
+        return Command(
+            update={
+                "raw_legislation_sources": [],
+                "reliable_legislation_sources": [],
+                "messages": [ToolMessage(content=summary, tool_call_id=tool_call_id)],
+            }
+        )
+
+    normalized_judgments = []
+    invalid_items = 0
+    for item in judgments:
+        if not isinstance(item, dict):
+            invalid_items += 1
+            continue
+
+        url = item.get("url")
+        has_valid_url = isinstance(url, str) and bool(url.strip())
+        normalized_judgments.append(
+            {
+                "accepted": bool(item.get("accepted", False)),
+                "url": url.strip() if has_valid_url else "Unknown URL",
+                "has_valid_url": has_valid_url,
+                "reason": item.get("reason", "No reason given"),
+            }
+        )
+
+    accepted = [
+        j
+        for j in normalized_judgments
+        if j.get("accepted", False) and j["has_valid_url"]
+    ]
+    rejected = [
+        j
+        for j in normalized_judgments
+        if not (j.get("accepted", False) and j["has_valid_url"])
+    ]
     reliable_sources = [j["url"] for j in accepted]
 
     summary_lines = [
@@ -218,6 +256,8 @@ def reliability_analysis(
             summary_lines.append(
                 f"  ✗ {j['url']} — {j.get('reason', 'No reason given')}"
             )
+    if invalid_items:
+        summary_lines.append(f"Skipped {invalid_items} malformed judgment item(s).")
 
     return Command(
         update={
