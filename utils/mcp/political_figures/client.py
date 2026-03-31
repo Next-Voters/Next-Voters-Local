@@ -19,7 +19,7 @@ from typing import Any
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-from utils.mcp._shared import parse_mcp_result
+from utils.mcp.session import MCPSessionManager
 
 _SERVER_PATH = str(Path(__file__).parent / "server.py")
 
@@ -42,6 +42,10 @@ async def get_political_figures_session():
             yield session
 
 
+_manager = MCPSessionManager("political_figures_session", get_political_figures_session)
+managed_political_figures_session = _manager.managed_session
+
+
 async def find_political_figures(city: str) -> dict[str, Any]:
     """Find political figures for a city.
 
@@ -51,11 +55,7 @@ async def find_political_figures(city: str) -> dict[str, Any]:
     Returns:
         Dict with "figures" (list) and "country" ("canada" or "usa").
     """
-    async with get_political_figures_session() as session:
-        result = await session.call_tool(
-            "find_political_figures", {"city": city}
-        )
-        return parse_mcp_result(result)
+    return await _manager.call_tool("find_political_figures", {"city": city})
 
 
 async def extract_commentary(
@@ -71,12 +71,9 @@ async def extract_commentary(
     Returns:
         Dict with "commentary" key.
     """
-    async with get_political_figures_session() as session:
-        result = await session.call_tool(
-            "extract_commentary",
-            {"url": url, "politician": politician, "query": query},
-        )
-        return parse_mcp_result(result)
+    return await _manager.call_tool(
+        "extract_commentary", {"url": url, "politician": politician, "query": query}
+    )
 
 
 async def search_politician_tweets(
@@ -96,14 +93,12 @@ async def search_politician_tweets(
     Returns:
         Dict with "user_found", "tweets", and optional "error".
     """
-    async with get_political_figures_session() as session:
-        result = await session.call_tool(
-            "search_politician_tweets",
-            {
-                "politician_name": politician_name,
-                "city": city,
-                "research_context": research_context,
-                "max_results": max_results,
-            },
-        )
-        return parse_mcp_result(result)
+    return await _manager.call_tool(
+        "search_politician_tweets",
+        {
+            "politician_name": politician_name,
+            "city": city,
+            "research_context": research_context,
+            "max_results": max_results,
+        },
+    )

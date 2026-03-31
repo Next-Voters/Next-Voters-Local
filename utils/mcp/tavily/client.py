@@ -20,7 +20,7 @@ from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from tavily import AsyncTavilyClient
 
-from utils.mcp._shared import parse_mcp_result
+from utils.mcp.session import MCPSessionManager
 
 _SERVER_PATH = str(Path(__file__).parent / "server.py")
 
@@ -62,6 +62,10 @@ async def get_tavily_session():
             yield session
 
 
+_manager = MCPSessionManager("tavily_session", get_tavily_session)
+managed_tavily_session = _manager.managed_session
+
+
 # ---------------------------------------------------------------------------
 # Search (via MCP — profile logic is now in the server)
 # ---------------------------------------------------------------------------
@@ -72,12 +76,9 @@ async def search_legislation(
     max_results: int = 5,
 ) -> dict[str, Any]:
     """Search for legislation using the legislation profile."""
-    async with get_tavily_session() as session:
-        result = await session.call_tool(
-            "search_legislation",
-            {"query": query, "city": city, "max_results": max_results},
-        )
-        return parse_mcp_result(result)
+    return await _manager.call_tool(
+        "search_legislation", {"query": query, "city": city, "max_results": max_results}
+    )
 
 
 async def search_political_content(
@@ -89,10 +90,7 @@ async def search_political_content(
     args: dict[str, Any] = {"query": query, "max_results": max_results}
     if city is not None:
         args["city"] = city
-
-    async with get_tavily_session() as session:
-        result = await session.call_tool("search_political_content", args)
-        return parse_mcp_result(result)
+    return await _manager.call_tool("search_political_content", args)
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +125,7 @@ def extract_search_results(raw_results: dict[str, Any]) -> list[dict[str, str]]:
 async def extract_url_content(urls: list[str]) -> dict[str, str]:
     """Batch-extract page content for URLs using Tavily SDK.
 
-o    Tavily API limits extraction to 20 URLs per request. Only the first 20 URLs are processed.
+    Tavily API limits extraction to 20 URLs per request. Only the first 20 URLs are processed.
 
     Returns: dict mapping URL to extracted content (markdown format).
     """

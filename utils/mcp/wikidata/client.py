@@ -17,7 +17,7 @@ from typing import Any
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-from utils.mcp._shared import parse_mcp_result
+from utils.mcp.session import MCPSessionManager
 
 _SERVER_PATH = str(Path(__file__).parent / "server.py")
 
@@ -40,6 +40,10 @@ async def get_wikidata_session():
             yield session
 
 
+_manager = MCPSessionManager("wikidata_session", get_wikidata_session)
+managed_wikidata_session = _manager.managed_session
+
+
 async def search_entity(query: str) -> str | None:
     """Search for a Wikidata entity ID by name.
 
@@ -49,10 +53,8 @@ async def search_entity(query: str) -> str | None:
     Returns:
         The entity ID string, or None if not found.
     """
-    async with get_wikidata_session() as session:
-        result = await session.call_tool("search_entity", {"query": query})
-        parsed = parse_mcp_result(result)
-        return parsed.get("entity_id")
+    result = await _manager.call_tool("search_entity", {"query": query})
+    return result.get("entity_id")
 
 
 async def get_org_classification(entity_id: str) -> dict[str, Any]:
@@ -64,11 +66,7 @@ async def get_org_classification(entity_id: str) -> dict[str, Any]:
     Returns:
         Dict with label, description, instance_of, country, etc.
     """
-    async with get_wikidata_session() as session:
-        result = await session.call_tool(
-            "get_org_classification", {"entity_id": entity_id}
-        )
-        return parse_mcp_result(result)
+    return await _manager.call_tool("get_org_classification", {"entity_id": entity_id})
 
 
 async def analyze_reliability(
@@ -83,8 +81,4 @@ async def analyze_reliability(
     Returns:
         Dict with "judgments" list.
     """
-    async with get_wikidata_session() as session:
-        result = await session.call_tool(
-            "analyze_reliability", {"sources": sources, "city": city}
-        )
-        return parse_mcp_result(result)
+    return await _manager.call_tool("analyze_reliability", {"sources": sources, "city": city})
