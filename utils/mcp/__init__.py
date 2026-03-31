@@ -1,47 +1,42 @@
-"""MCP/search client utilities for connecting to external services."""
+"""MCP client utilities for connecting to external services."""
 
 from utils.mcp.tavily_client import (
     get_api_key,
     get_tavily_session,
-    load_search_profile,
-    search_with_profile,
     search_legislation,
     search_political_content,
     extract_search_results,
     extract_url_content,
 )
-from utils.mcp.twitter_client import (
-    get_twitter_session,
-    get_twitter_credentials,
-    search_tweets,
-    get_user_tweets,
-    get_user_by_username,
-    search_user_and_tweets,
-    validate_twitter_handle,
-    sanitize_search_context,
-    is_error_response,
-    extract_tweet_results,
-    SMITHERY_TWITTER_URL,
+from utils.mcp.wikidata_client import (
+    get_wikidata_session,
+    search_entity,
+    get_org_classification,
+    analyze_reliability,
+)
+from utils.mcp.political_figures_client import (
+    get_political_figures_session,
+    find_political_figures,
+    extract_commentary,
+    search_politician_tweets,
 )
 
 __all__ = [
+    # Tavily
     "get_api_key",
     "get_tavily_session",
-    "load_search_profile",
-    "search_with_profile",
     "search_legislation",
     "search_political_content",
     "extract_search_results",
     "extract_url_content",
-    "get_twitter_session",
-    "get_twitter_credentials",
-    "search_tweets",
-    "get_user_tweets",
-    "get_user_by_username",
-    "search_user_and_tweets",
-    "validate_twitter_handle",
-    "sanitize_search_context",
-    "is_error_response",
-    "extract_tweet_results",
-    "SMITHERY_TWITTER_URL",
+    # Wikidata
+    "get_wikidata_session",
+    "search_entity",
+    "get_org_classification",
+    "analyze_reliability",
+    # Political Figures
+    "get_political_figures_session",
+    "find_political_figures",
+    "extract_commentary",
+    "search_politician_tweets",
 ]
