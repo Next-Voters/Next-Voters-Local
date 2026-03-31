@@ -55,4 +55,4 @@ def get_structured_llm(
         timeout=timeout,
         **kwargs,
     )
-    return base_llm.with_structured_output(output_schema)
+    return base_llm.with_structured_output(output_schema, include_raw=False)

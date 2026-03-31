@@ -13,16 +13,16 @@ def run_content_retrieval(inputs: ChainData) -> ChainData:
     for source in legislation_sources:
         url = source.get("url") if isinstance(source, dict) else source
 
-        if not url:
+        if not isinstance(url, str) or not url.strip():
             legislation_content.append(f"[Invalid source: {source}]")
             continue
 
         try:
-            markdown_url = f"https://markdown.new/{url}"
+            markdown_url = f"https://markdown.new/{url.strip()}"
             response = httpx.get(markdown_url, timeout=30, follow_redirects=True)
             response.raise_for_status()
             legislation_content.append(response.text)
-        except httpx.HTTPError:
+        except (httpx.HTTPError, httpx.InvalidURL, ValueError):
             legislation_content.append(f"[Failed to fetch: {url}]")
 
     return {**inputs, "legislation_content": legislation_content}
