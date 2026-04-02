@@ -128,7 +128,8 @@ legislation_finder → content_retrieval → note_taker → summary_writer
 
 **Semantic context compression (LLMLingua-2) per source**
 - Each fetched page is independently compressed by `utils/context_compressor.py` (BERT-based token classifier) before entering pipeline state
-- At `COMPRESSION_RATE=0.5`, a 534K-token NYC payload is reduced to ~267K tokens — avoiding `OpenAIContextOverflowError` on large cities
+- Content retrieval caps URLs at 10 (down from 20) to prevent context overflow on content-rich cities like NYC
+- At `COMPRESSION_RATE=0.4` with the 10-URL cap, even large-city payloads stay safely under the 272K-token input limit — avoiding `OpenAIContextOverflowError`
 - Compression is applied per-source (not once on the concatenated batch) to keep the logic local to where data enters the pipeline
 - Short content (<1000 chars) bypasses compression entirely; model is lazy-loaded on first use, no API key or GPU required
 
