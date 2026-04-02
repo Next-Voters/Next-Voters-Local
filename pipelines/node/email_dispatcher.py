@@ -24,75 +24,11 @@ from utils.email import (
     SMTPConnectionPool,
     convert_markdown_to_html,
     render_template,
-    create_mime_message,
+    send_single_email,
+    is_email_configured,
 )
 
 logger = logging.getLogger(__name__)
-
-
-EMAIL_REQUIRED_ENV = (
-    "SMTP_EMAIL",
-    "SMTP_APP_PASSWORD",
-    "SUPABASE_URL",
-    "SUPABASE_KEY",
-)
-
-
-def _is_email_configured() -> bool:
-    """Check if all required email environment variables are set."""
-    return all(os.environ.get(env_var) for env_var in EMAIL_REQUIRED_ENV)
-
-
-def send_single_email(
-    pool: SMTPConnectionPool,
-    email: str,
-    subject: str,
-    html_body: str,
-    failures: queue.Queue,
-) -> bool:
-    """Send a single email and track failures.
-
-    Uses a thread-safe queue instead of a shared list to avoid race conditions
-    when multiple threads add failures simultaneously.
-
-    Args:
-        pool: SMTP connection pool
-        email: Recipient email address
-        subject: Email subject line
-        html_body: HTML email body
-        failures: Thread-safe queue for tracking delivery failures
-
-    Returns:
-        True if email sent successfully, False otherwise
-    """
-    conn = None
-    try:
-        conn = pool.get_connection(timeout=30)
-
-        msg = create_mime_message(
-            os.environ["SMTP_EMAIL"],
-            email,
-            subject,
-            html_body,
-        )
-
-        conn.sendmail(os.environ["SMTP_EMAIL"], email, msg.as_string())
-
-        time.sleep(0.5)
-
-        return True
-    except Exception as e:
-        failures.put(
-            {
-                "email": email,
-                "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-        )
-        return False
-    finally:
-        if conn:
-            pool.return_connection(conn)
 
 
 def save_failures(failures: list[dict]):
@@ -145,7 +81,7 @@ def dispatch_emails_to_subscribers(
     5. Tracks delivery statistics and failures
 
     Args:
-        reports: Nested dictionary mapping city → topic → markdown report.
+        reports: Nested dictionary mapping city -> topic -> markdown report.
                  Generated from report_cache.get_all().
                  Example: {"Toronto": {"immigration": "# Report...", "economy": "# Report..."}}
 
@@ -160,7 +96,7 @@ def dispatch_emails_to_subscribers(
     """
 
     # Check if email is configured
-    if not _is_email_configured():
+    if not is_email_configured():
         logger.info("Email configuration incomplete; skipping email dispatch")
         return {
             "total_sent": 0,
@@ -302,7 +238,7 @@ def dispatch_emails_to_subscribers(
         "delivery_failures": [],
     }
 
-    try:
+    with pool:
         # Send emails in waves to avoid rate limiting
         waves = [send_queue[i : i + 100] for i in range(0, len(send_queue), 100)]
 
@@ -330,9 +266,6 @@ def dispatch_emails_to_subscribers(
                         delivery_stats["total_sent"] += 1
 
             time.sleep(1)
-
-    finally:
-        pool.close_all()
 
     # Extract failures from queue
     delivery_failures = []
