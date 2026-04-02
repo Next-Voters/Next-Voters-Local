@@ -120,13 +120,11 @@ class BaseReActAgent:
         temperature: float = 0.0,
         max_tokens: int = 2000,
         timeout: int = 30,
-        recursion_limit: int = 25,
     ):
         self.state_schema = state_schema
         # Always include reflection_tool by default
         self.tools = [reflection_tool] + tools
         self.system_prompt = system_prompt
-        self.recursion_limit = recursion_limit
 
         self.model = get_llm(
             model=model_name,
@@ -192,4 +190,4 @@ class BaseReActAgent:
         )
         graph.add_edge("tool_node", "call_model")
 
-        return graph.compile(recursion_limit=self.recursion_limit)
+        return graph.compile()

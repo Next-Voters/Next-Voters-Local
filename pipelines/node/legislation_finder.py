@@ -2,6 +2,7 @@ from contextlib import AsyncExitStack
 
 from langchain_core.runnables import RunnableLambda
 
+from config.constants import AGENT_RECURSION_LIMIT
 from utils.schemas import ChainData
 from utils.async_runner import run_async
 from utils.mcp.tavily.client import managed_tavily_session
@@ -13,7 +14,10 @@ async def _invoke_legislation_finder(city: str) -> dict:
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(managed_tavily_session())
         await stack.enter_async_context(managed_wikidata_session())
-        return await legislation_finder_agent.ainvoke({"city": city})
+        return await legislation_finder_agent.ainvoke(
+            {"city": city},
+            config={"recursion_limit": AGENT_RECURSION_LIMIT},
+        )
 
 
 def run_legislation_finder(inputs: ChainData) -> ChainData:

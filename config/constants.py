@@ -21,3 +21,11 @@ MAX_AGENT_MESSAGES: int = 30
 
 # Reflection entries kept in the agent system prompt.
 MAX_REFLECTION_ENTRIES: int = 5
+
+# ---------------------------------------------------------------------------
+# Agent recursion limit
+# ---------------------------------------------------------------------------
+
+# Maximum graph steps before LangGraph raises a recursion error.
+# Prevents unbounded tool-call loops in multi-city runs.
+AGENT_RECURSION_LIMIT: int = 25
