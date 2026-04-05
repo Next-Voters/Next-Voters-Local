@@ -73,7 +73,7 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 ### Core Components
 
 **Agents** (`agents/`):
-- `base_agent_template.py`: Shared ReAct agent template with reflection context management
+- `base_agent_template.py`: Shared ReAct agent template (imports reflection tool from `utils/tools`)
 - `legislation_finder.py`: Discovers legislation sources via web search
 
 **Pipeline Nodes** (`pipelines/node/`):
@@ -95,7 +95,7 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 - `email.py`: Consolidated email utilities — `SMTPConnectionPool` (thread-safe, context manager, NOOP health checks for stale connections), `is_email_configured()`, `load_template()`, `convert_markdown_to_html()`, `render_template()`, `create_mime_message()`, `send_single_email()`. Single source of truth for all SMTP and email rendering logic.
 - `report_translator.py`: Translates all cached pipeline reports to Spanish (ES) and French (FR) synchronously via the DeepL SDK (`deepl` Python package). Uses direct `deepl.Translator` calls (no MCP layer). Exports `LANG_MAP` dict mapping language names to codes (e.g. `{"Spanish": "ES", "French": "FR"}`). Optional — gracefully skipped if `DEEPL_API_KEY` is not set.
 - `context_compressor.py`: LLMLingua-2 wrapper (`compress_text()`) that semantically compresses raw page content before it enters pipeline state, preventing context overflow on large cities.
-- `tools/`: Agent tool adapters with LangChain `@tool` decorators, re-exported via `__init__.py` (e.g., `web_search.py`). Agents import tools from here rather than defining them inline.
+- `tools/`: Agent tool adapters with LangChain `@tool` decorators, re-exported via `__init__.py` (e.g., `reflection.py`, `web_search.py`). Agents import tools from here rather than defining them inline.
 - `supabase_client.py`: Loads supported cities, topics, and languages from Supabase, manages subscriptions with topic and language preferences via the `subscription_topics` junction table and `preferred_language` FK
 
 **Templates** (`templates/`):

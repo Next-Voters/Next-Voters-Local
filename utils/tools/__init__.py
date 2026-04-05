@@ -5,5 +5,6 @@ in LangGraph Commands for state updates.
 """
 
 from utils.tools.web_search import web_search
+from utils.tools.reflection import reflection_tool
 
-__all__: list[str] = ["web_search"]
+__all__: list[str] = ["web_search", "reflection_tool"]
