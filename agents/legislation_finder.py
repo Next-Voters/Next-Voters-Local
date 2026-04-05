@@ -7,6 +7,7 @@ The agent searches for recent local legislation using web search.
 It uses a dynamic system prompt that incorporates the target city and date range.
 """
 
+import logging
 from datetime import datetime, timedelta
 
 from agents.base_agent_template import BaseReActAgent
@@ -14,14 +15,14 @@ from utils.tools import web_search
 from utils.schemas import LegislationFinderState
 from config.system_prompts import legislation_finder_sys_prompt
 
+logger = logging.getLogger(__name__)
+
 
 # === AGENT CONSTRUCTION ===
 
 _agent = BaseReActAgent(
     state_schema=LegislationFinderState,
-    tools=[
-        web_search,
-    ],
+    tools=[web_search],
     system_prompt=lambda state: legislation_finder_sys_prompt.format(
         input_city=state.get("city", "Unknown"),
         last_week_date=(datetime.today() - timedelta(days=7)).strftime("%B %d, %Y"),

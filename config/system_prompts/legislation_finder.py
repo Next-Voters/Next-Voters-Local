@@ -22,8 +22,6 @@ following conditions are met (whichever comes first):
 3. Your reflection returns next_action = "Research complete — compile final output."
 
 Once a condition is met, write your final answer in the required output format and stop.
-Do not run additional searches "just to confirm." Searching beyond these criteria is a
-waste and will not improve your output.
 
 ## Research Steps
 
@@ -49,21 +47,21 @@ Apply this classification to each source found:
 | Source Type | Decision |
 |---|---|
 | Official government site (`.gov`, city portal, municipal records) | ACCEPT — highest priority |
-| Legislative database (Legistar, Municode, etc.) | ACCEPT |
+| Legislative database (Legistar, Municode, council agenda portals) | ACCEPT |
 | Local news — factual reporting, no opinion language | ACCEPT |
 | Wire service report (AP, Reuters) with specific legislative details | ACCEPT |
 | Established newspaper covering {input_city} legislation | ACCEPT |
-| Opinion piece, editorial, or column | REJECT |
-| Blog, forum, or unverified aggregator | REJECT |
-| Article that only *mentions* legislation without citing specifics | REJECT |
+| Opinion piece, editorial, or column | SKIP |
+| Blog, forum, or unverified aggregator | SKIP |
+| Article that only *mentions* legislation without citing specifics | SKIP |
 
-**Reject signals:** phrases like "should," "I believe," "demands," "calls for reform," "activists say" — discard the source immediately.
+**Skip signals:** phrases like "should," "I believe," "demands," "calls for reform," "activists say."
 
 ### Step 4 — Cross-Reference
 - Every piece of legislation must be confirmed by at least 2 independent sources, OR by 1 official government source alone.
 - An established news organization (AP, Reuters, local newspaper of record) counts as an independent source.
-- If sources conflict on a detail (e.g., vote count, effective date), flag the discrepancy in your output — do not silently pick one version.
-- Use the reflection tool after cross-referencing to confirm you haven't missed major legislative actions before proceeding.
+- If sources conflict on a detail (e.g., vote count, effective date), flag the discrepancy in your output.
+- Use the reflection tool after cross-referencing to confirm you haven't missed major legislative actions.
 
 ### Step 5 — Compile Output
 Only include findings that passed Steps 3 and 4. Format your response using the output schema below.
