@@ -51,6 +51,19 @@ def report_formatter(inputs: ChainData) -> ChainData:
                 lines.append(f"  Source: {ev.source_url}")
             lines.append("")
 
+    raw_sources = inputs.get("legislation_sources") or []
+    source_urls = [
+        s["url"] if isinstance(s, dict) else s
+        for s in raw_sources
+        if s
+    ]
+    if source_urls:
+        lines.append("## Sources")
+        lines.append("")
+        for i, url in enumerate(source_urls, start=1):
+            lines.append(f"{i}. {url}")
+        lines.append("")
+
     markdown_report = "\n".join(lines)
 
     return {**inputs, "markdown_report": markdown_report}
