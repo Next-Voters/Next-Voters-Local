@@ -23,9 +23,9 @@ warnings.filterwarnings(
 )
 
 from utils.supabase_client import get_supported_cities_from_db, get_supported_topics
-from utils import report_cache
-from utils.report_translator import translate_all_reports
-from utils.report_storage import upload_all as upload_reports_to_storage
+from utils.report import cache as report_cache
+from utils.report.translator import translate_all_reports
+from utils.report.storage import upload_all as upload_reports_to_storage
 from pipelines.nv_local import run_pipeline
 from pipelines.node.email_dispatcher import dispatch_emails_to_subscribers
 

@@ -13,9 +13,9 @@ from langchain_core.tools import tool, InjectedToolCallId
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from utils.context_compressor import compress_text
+from utils.content.compressor import compress_text
 from utils.mcp import registry as mcp
-from utils.pdf_extractor import is_pdf_url, download_and_parse_pdf
+from utils.content.pdf_extractor import is_pdf_url, download_and_parse_pdf
 from utils.tools._helpers import ok, err
 
 logger = logging.getLogger(__name__)

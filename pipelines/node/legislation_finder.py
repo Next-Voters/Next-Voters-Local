@@ -8,7 +8,7 @@ from config.constants import AGENT_RECURSION_LIMIT
 from utils.schemas import ChainData
 from utils.async_runner import run_async
 from utils.mcp import registry as mcp
-from utils.source_reliability import filter_sources
+from utils.content.source_reliability import filter_sources
 
 logger = logging.getLogger(__name__)
 

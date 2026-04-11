@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from utils.supabase_client import get_all_subscribers_with_cities_and_topics
-from utils.report_translator import LANG_MAP
+from utils.report.translator import LANG_MAP
 from utils.email import (
     SMTPConnectionPool,
     convert_markdown_to_html,

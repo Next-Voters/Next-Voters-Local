@@ -90,11 +90,16 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 - `schemas/`:
   - `state.py`: `ChainData` TypedDict (pipeline state contract)
   - `pydantic.py`: Structured output schemas (e.g., `WriterOutput`)
-- `mcp/`: Per-service MCP (Model Context Protocol) client + server pairs for Tavily search/extraction. Each service lives in its own subdirectory (`tavily/`) with a `client.py` and `server.py`. Agents call `client.py` functions; `server.py` runs as a FastMCP subprocess via stdio transport. `session.py` provides `MCPSessionManager` for reusing subprocesses across tool calls within one agent invocation (avoids spawning a new process per tool call). Note: DeepL translation was moved out of MCP into a direct SDK call (`utils/report_translator.py`).
-- `report_cache.py`: Module-level in-memory cache for city+topic pipeline reports and their translations. Reports are stored via `store(city, topic, report)` keyed as `{city: {topic: report}}`. Translations are stored in a parallel `_translations` dict via `store_translation(city, topic, lang, report)` or `store_all_translations(translations)`, keyed as `{city: {topic: {lang: report}}}`. Retrieve translations via `get_translation(city, topic, lang)` or `get_all_translations()`. The module itself acts as a singleton — import `from utils import report_cache` from anywhere.
+- `report/`: Report lifecycle utilities
+  - `cache.py`: Module-level in-memory cache for city+topic pipeline reports and their translations. Reports are stored via `store(city, topic, report)` keyed as `{city: {topic: report}}`. Translations are stored in a parallel `_translations` dict via `store_translation(city, topic, lang, report)` or `store_all_translations(translations)`, keyed as `{city: {topic: {lang: report}}}`. Retrieve translations via `get_translation(city, topic, lang)` or `get_all_translations()`. The module itself acts as a singleton — import `from utils.report import cache as report_cache` from anywhere.
+  - `storage.py`: Uploads HTML reports to Supabase Storage with branded template rendering
+  - `translator.py`: Translates all cached pipeline reports to Spanish (ES) and French (FR) synchronously via the DeepL SDK (`deepl` Python package). Uses direct `deepl.Translator` calls (no MCP layer). Exports `LANG_MAP` dict mapping language names to codes (e.g. `{"Spanish": "ES", "French": "FR"}`). Optional — gracefully skipped if `DEEPL_API_KEY` is not set.
+- `content/`: Content processing and evaluation utilities
+  - `compressor.py`: LLMLingua-2 wrapper (`compress_text()`) that semantically compresses raw page content before it enters pipeline state, preventing context overflow on large cities.
+  - `pdf_extractor.py`: PDF detection (HEAD request + suffix check) and PDF-to-Markdown conversion via pymupdf4llm.
+  - `source_reliability.py`: Domain-level source reliability scoring and filtering — classifies URLs into government, legislative, news, other, or blocked tiers.
+- `mcp/`: Per-service MCP (Model Context Protocol) client + server pairs for Tavily search/extraction. Each service lives in its own subdirectory (`tavily/`) with a `client.py` and `server.py`. Agents call `client.py` functions; `server.py` runs as a FastMCP subprocess via stdio transport. `session.py` provides `MCPSessionManager` for reusing subprocesses across tool calls within one agent invocation (avoids spawning a new process per tool call). Note: DeepL translation was moved out of MCP into a direct SDK call (`utils/report/translator.py`).
 - `email.py`: Consolidated email utilities — `SMTPConnectionPool` (thread-safe, context manager, NOOP health checks for stale connections), `is_email_configured()`, `load_template()`, `convert_markdown_to_html()`, `render_template()`, `create_mime_message()`, `send_single_email()`. Single source of truth for all SMTP and email rendering logic.
-- `report_translator.py`: Translates all cached pipeline reports to Spanish (ES) and French (FR) synchronously via the DeepL SDK (`deepl` Python package). Uses direct `deepl.Translator` calls (no MCP layer). Exports `LANG_MAP` dict mapping language names to codes (e.g. `{"Spanish": "ES", "French": "FR"}`). Optional — gracefully skipped if `DEEPL_API_KEY` is not set.
-- `context_compressor.py`: LLMLingua-2 wrapper (`compress_text()`) that semantically compresses raw page content before it enters pipeline state, preventing context overflow on large cities.
 - `tools/`: Agent tool adapters with LangChain `@tool` decorators, re-exported via `__init__.py` (e.g., `reflection.py`, `web_search.py`). Agents import tools from here rather than defining them inline.
 - `supabase_client.py`: Loads supported cities, topics, and languages from Supabase, manages subscriptions with topic and language preferences via the `subscription_topics` junction table and `preferred_language` FK
 
@@ -133,7 +138,7 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 - This replaced a pattern where some sites returned 403s via `markdown.new`, producing empty content and empty reports
 
 **Semantic context compression (LLMLingua-2) per source**
-- Each fetched page is independently compressed by `utils/context_compressor.py` (BERT-based token classifier) before entering pipeline state
+- Each fetched page is independently compressed by `utils/content/compressor.py` (BERT-based token classifier) before entering pipeline state
 - Content retrieval caps URLs at 10 (down from 20) to prevent context overflow on content-rich cities like NYC
 - At `COMPRESSION_RATE=0.4` with the 10-URL cap, even large-city payloads stay safely under the 272K-token input limit — avoiding `OpenAIContextOverflowError`
 - Compression is applied per-source (not once on the concatenated batch) to keep the logic local to where data enters the pipeline
@@ -150,7 +155,7 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 - System prompts include explicit "Exit Criteria" sections with measurable stopping conditions
 - Together these reduce LLM request volume ~40% while maintaining research quality
 
-**In-memory report cache (`utils/report_cache.py`)**
+**In-memory report cache (`utils/report/cache.py`)**
 - Module-level nested dict cache keyed by `{city: {topic: report}}`
 - Reports are cached incrementally via `report_cache.store(city, topic, report)` as each pipeline thread completes
 - The email dispatcher receives reports via `report_cache.get_all()`, which returns a deep copy (`dict[str, dict[str, str]]`)
@@ -173,7 +178,7 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 
 **Language-aware multilingual reports via DeepL SDK**
 - Reports are optionally translated to Spanish (ES) and French (FR) via the `deepl` Python SDK (direct synchronous API calls)
-- `utils/report_translator.py` translates all cached reports sequentially using a single `deepl.Translator` instance
+- `utils/report/translator.py` translates all cached reports sequentially using a single `deepl.Translator` instance
 - Translations are stored in `report_cache._translations` via `store_all_translations()` alongside the original English reports
 - Subscribers receive emails in their `preferred_language` (from `subscriptions` table); English or NULL defaults to the original report
 - `supported_languages` lookup table constrains valid language values; `subscriptions.preferred_language` is a nullable FK to it
@@ -207,7 +212,7 @@ Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(
 **External APIs** (no env needed, service-to-service):
 - OpenStreetMap Nominatim (country detection)
 **Local models** (downloaded on first run, no API key):
-- `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank` (HuggingFace Hub) — used by `utils/context_compressor.py` for content compression; cached after first download, runs on CPU
+- `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank` (HuggingFace Hub) — used by `utils/content/compressor.py` for content compression; cached after first download, runs on CPU
 
 ## Common Patterns
 
