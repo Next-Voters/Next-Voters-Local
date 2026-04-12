@@ -25,9 +25,9 @@ _GCAL_MCP_URL = "https://gcal.mintmcp.com/mcp"
 async def _load_gcal_tools():
     """Load calendar tools from the remote Google Calendar MCP server."""
     headers = {}
-    token = os.getenv("MINTMCP_AUTH_TOKEN")
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    api_key = os.getenv("GLAMA_API_KEY")
+    if api_key:
+        headers["X-API-Key"] = api_key
 
     read, write, _ = await streamablehttp_client(
         _GCAL_MCP_URL, headers=headers
