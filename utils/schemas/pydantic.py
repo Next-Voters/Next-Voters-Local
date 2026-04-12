@@ -22,27 +22,6 @@ class ReflectionEntry(BaseModel):
     )
 
 
-class LegislativeEvent(BaseModel):
-    """A legislative event extracted from search results."""
-
-    title: str = Field(description="Event title (e.g. 'City Council Meeting — Zoning Vote')")
-    description: Optional[str] = Field(
-        default=None, description="Brief description of what will happen at this event"
-    )
-    start_date: str = Field(
-        description="Start date/time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)"
-    )
-    end_date: Optional[str] = Field(
-        default=None, description="End date/time in ISO 8601 format"
-    )
-    location: Optional[str] = Field(
-        default=None, description="Physical or virtual location of the event"
-    )
-    source_url: Optional[str] = Field(
-        default=None, description="URL where this event was found"
-    )
-
-
 class WriterOutput(BaseModel):
     """Structured reflection output produced by the reflection tool."""
 

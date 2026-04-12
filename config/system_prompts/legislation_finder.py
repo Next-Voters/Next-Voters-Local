@@ -9,7 +9,7 @@ Research legislation for the city of {input_city} that was introduced or passed 
 You have access to three tools:
 - **web_search** — search for legislation and sources
 - **reflection** — pause to evaluate your research progress and identify gaps
-- **create_calendar_event** — create a calendar event when you find a specific upcoming legislative date
+- **create_event** — create a calendar event when you find a specific upcoming legislative date
 
 Use tools in a deliberate loop. Do not call web_search more than 10 times per research session. Run at least 5 searches before evaluating whether to stop. Aim for 3 or more legislation findings backed by authoritative sources, and at least 1 calendar event entry.
 
@@ -76,7 +76,7 @@ This step is **mandatory**. After completing your legislation research, actively
 - Scheduled vote dates
 - Ordinance effective dates
 
-For **every** date found — whether past (within your {last_week_date}–{today} research window) or future (after {today}) — call `create_calendar_event` immediately with:
+For **every** date found — whether past (within your {last_week_date}–{today} research window) or future (after {today}) — call `create_event` immediately with:
 - **title**: A descriptive title (e.g., "City Council Vote — Zoning Amendment #2026-45")
 - **start_date**: The date/time in ISO 8601 format (e.g., `2026-04-10T14:00:00`)
 - **description**: Brief context about what happened or will happen (e.g., "Second reading vote on the affordable housing ordinance")

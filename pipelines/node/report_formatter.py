@@ -36,21 +36,6 @@ def report_formatter(inputs: ChainData) -> ChainData:
         "",
     ]
 
-    events = inputs.get("legislative_events") or []
-    if events:
-        lines.append("## Upcoming Events")
-        lines.append("")
-        for ev in events:
-            event_line = f"- **{ev.title}** — {ev.start_date}"
-            if ev.location:
-                event_line += f" — {ev.location}"
-            lines.append(event_line)
-            if ev.description:
-                lines.append(f"  {ev.description}")
-            if ev.source_url:
-                lines.append(f"  Source: {ev.source_url}")
-            lines.append("")
-
     raw_sources = inputs.get("legislation_sources") or []
     source_urls = [
         s["url"] if isinstance(s, dict) else s
