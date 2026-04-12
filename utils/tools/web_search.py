@@ -17,7 +17,7 @@ from langgraph.types import Command
 from utils.content.compressor import compress_text
 from utils.content.pdf_extractor import is_pdf_url, download_and_parse_pdf
 from utils.tools._helpers import ok, err
-from utils.tools.tavily import search_legislation
+from utils.tools.utils.tavily import search_legislation
 
 logger = logging.getLogger(__name__)
 
