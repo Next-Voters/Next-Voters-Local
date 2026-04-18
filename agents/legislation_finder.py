@@ -44,32 +44,38 @@ async def invoke_legislation_finder(city: str) -> dict:
 
     The MCP streamable-HTTP client uses anyio task groups internally, so
     the session must remain open (via ``async with``) for the entire
-    duration of agent execution.
+    duration of agent execution.  If the MCP connection fails, the agent
+    falls back to running with web_search only.
     """
+    from langchain_core.messages import HumanMessage
+
+    invoke_kwargs = {
+        "input": {
+            "city": city,
+            "messages": [
+                HumanMessage(content=f"Find recent legislation for {city}.")
+            ],
+        },
+        "config": {"recursion_limit": AGENT_RECURSION_LIMIT},
+    }
+
     headers = {}
     api_key = os.getenv("GLAMA_API_KEY")
     if api_key:
         headers["X-API-Key"] = api_key
 
-    async with streamablehttp_client(_GCAL_MCP_URL, headers=headers) as (
-        read,
-        write,
-        _,
-    ):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            gcal_tools = await load_mcp_tools(session)
-            graph = _build_agent(gcal_tools)
-            from langchain_core.messages import HumanMessage
-
-            return await graph.ainvoke(
-                {
-                    "city": city,
-                    "messages": [
-                        HumanMessage(
-                            content=f"Find recent legislation for {city}."
-                        )
-                    ],
-                },
-                config={"recursion_limit": AGENT_RECURSION_LIMIT},
-            )
+    try:
+        async with streamablehttp_client(_GCAL_MCP_URL, headers=headers) as (
+            read,
+            write,
+            _,
+        ):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                gcal_tools = await load_mcp_tools(session)
+                graph = _build_agent(gcal_tools)
+                return await graph.ainvoke(**invoke_kwargs)
+    except Exception as exc:
+        logger.warning("MCP connection failed (%s), running without calendar tools", exc)
+        graph = _build_agent([])
+        return await graph.ainvoke(**invoke_kwargs)
