@@ -1,9 +1,7 @@
 import logging
 
-from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableLambda
 
-from config.constants import AGENT_RECURSION_LIMIT
 from utils.schemas import ChainData
 from utils.async_runner import run_async
 from utils.content.source_reliability import filter_sources
@@ -11,24 +9,13 @@ from utils.content.source_reliability import filter_sources
 logger = logging.getLogger(__name__)
 
 
-async def _invoke_legislation_finder(city: str) -> dict:
-    """Build and invoke the legislation finder agent."""
-    from agents.legislation_finder import build_legislation_finder
-    agent = await build_legislation_finder()
-    return await agent.ainvoke(
-        {
-            "city": city,
-            "messages": [
-                HumanMessage(content=f"Find recent legislation for {city}.")
-            ],
-        },
-        config={"recursion_limit": AGENT_RECURSION_LIMIT},
-    )
-
-
 def run_legislation_finder(inputs: ChainData) -> ChainData:
+    """Run the legislation finder agent for the given city."""
     city = inputs.get("city", "Unknown")
-    agent_result = run_async(lambda: _invoke_legislation_finder(city))
+
+    from agents.legislation_finder import invoke_legislation_finder
+
+    agent_result = run_async(lambda: invoke_legislation_finder(city))
 
     # Extract sources collected by web_search tool calls.
     # Sources are either plain URL strings or dicts {"url", "content", "source"} for

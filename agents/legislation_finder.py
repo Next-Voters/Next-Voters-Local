@@ -13,6 +13,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 from agents.base_agent_template import BaseReActAgent
+from config.constants import AGENT_RECURSION_LIMIT
 from config.system_prompts import legislation_finder_sys_prompt
 from utils.tools import web_search
 from utils.schemas import LegislationFinderState
@@ -20,33 +21,15 @@ from utils.schemas import LegislationFinderState
 logger = logging.getLogger(__name__)
 
 _GCAL_MCP_URL = "https://gcal.mintmcp.com/mcp"
+_TARGET_GCAL_TOOLS = {"create_event", "get_calendar_events", "update_event"}
 
 
-async def _load_gcal_tools():
-    """Load calendar tools from the remote Google Calendar MCP server."""
-    headers = {}
-    api_key = os.getenv("GLAMA_API_KEY")
-    if api_key:
-        headers["X-API-Key"] = api_key
-
-    read, write, _ = await streamablehttp_client(
-        _GCAL_MCP_URL, headers=headers
-    ).__aenter__()
-    session = ClientSession(read, write)
-    await session.__aenter__()
-    await session.initialize()
-    tools = await load_mcp_tools(session)
-    return tools
-async def build_legislation_finder():
-    """Build the legislation finder agent with web_search + remote create_event."""
-    
-    gcal_tools = await _load_gcal_tools()
-    target_gcal_tools_name = {"create_event", "get_calendar_events", "update_event"}
-    selected_gcal_tools = [tool for tool in gcal_tools if tool.name in target_gcal_tools_name]
-    
+def _build_agent(gcal_tools: list) -> object:
+    """Build the legislation finder agent graph with the given tools."""
+    selected = [t for t in gcal_tools if t.name in _TARGET_GCAL_TOOLS]
     agent = BaseReActAgent(
         state_schema=LegislationFinderState,
-        tools=[web_search, ] + selected_gcal_tools,
+        tools=[web_search] + selected,
         system_prompt=lambda state: legislation_finder_sys_prompt.format(
             input_city=state.get("city", "Unknown"),
             last_week_date=(datetime.today() - timedelta(days=7)).strftime("%B %d, %Y"),
@@ -54,3 +37,39 @@ async def build_legislation_finder():
         ),
     )
     return agent.build()
+
+
+async def invoke_legislation_finder(city: str) -> dict:
+    """Build and invoke the legislation finder, keeping MCP session alive.
+
+    The MCP streamable-HTTP client uses anyio task groups internally, so
+    the session must remain open (via ``async with``) for the entire
+    duration of agent execution.
+    """
+    headers = {}
+    api_key = os.getenv("GLAMA_API_KEY")
+    if api_key:
+        headers["X-API-Key"] = api_key
+
+    async with streamablehttp_client(_GCAL_MCP_URL, headers=headers) as (
+        read,
+        write,
+        _,
+    ):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            gcal_tools = await load_mcp_tools(session)
+            graph = _build_agent(gcal_tools)
+            from langchain_core.messages import HumanMessage
+
+            return await graph.ainvoke(
+                {
+                    "city": city,
+                    "messages": [
+                        HumanMessage(
+                            content=f"Find recent legislation for {city}."
+                        )
+                    ],
+                },
+                config={"recursion_limit": AGENT_RECURSION_LIMIT},
+            )
