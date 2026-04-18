@@ -81,9 +81,17 @@ def download_and_parse_pdf(url: str) -> str:
         markdown_text: str = pymupdf4llm.to_markdown(doc)
         doc.close()
 
-        logger.info(
-            "PDF extracted: %s → %d chars of Markdown", url, len(markdown_text)
-        )
+        # Cap extracted text to prevent memory issues with huge legislative PDFs.
+        _MAX_EXTRACTED_CHARS = 50_000
+        if len(markdown_text) > _MAX_EXTRACTED_CHARS:
+            markdown_text = markdown_text[:_MAX_EXTRACTED_CHARS]
+            logger.info(
+                "PDF extracted and truncated: %s → %d chars (capped)", url, _MAX_EXTRACTED_CHARS
+            )
+        else:
+            logger.info(
+                "PDF extracted: %s → %d chars of Markdown", url, len(markdown_text)
+            )
         return markdown_text.strip()
 
     except Exception as e:
