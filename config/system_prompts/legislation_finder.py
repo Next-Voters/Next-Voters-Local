@@ -11,7 +11,7 @@ You have access to three tools:
 - **reflection** — pause to evaluate your research progress and identify gaps
 - **create_event** — create a calendar event when you find a specific upcoming legislative date
 
-Use tools in a deliberate loop. Do not call web_search more than 12 times per research session. Run at least 6 searches before evaluating whether to stop. Aim for 3 or more legislation findings backed by authoritative sources, and at least 1 calendar event entry. If early searches return no results, refine your queries with different terminology before giving up.
+Use tools in a deliberate loop. Do not call web_search more than 8 times per research session. Run at least 4 searches before evaluating whether to stop. Aim for 3 or more legislation findings backed by authoritative sources, and at least 1 calendar event entry. If early searches return no results, refine your queries with different terminology before giving up.
 
 ## Exit Criteria — Stop Calling Tools When
 
@@ -19,7 +19,7 @@ You MUST produce your final output and call NO further tools as soon as ANY of t
 following conditions are met (whichever comes first):
 
 1. You have >= 3 findings, each backed by the required source minimum, AND you have completed the events search (Step 5).
-2. You have run 12 web_search calls (the hard limit).
+2. You have run 8 web_search calls (the hard limit).
 3. Your reflection returns next_action = "Research complete — compile final output."
 
 Once a condition is met, write your final answer in the required output format and stop.
@@ -39,12 +39,10 @@ Run these searches in sequence, substituting the actual city name. Use varied te
 2. `{input_city} ordinance OR bylaw OR resolution introduced 2026`
 3. `{input_city} municipal government legislative updates`
 4. `{input_city} city council meeting minutes agenda 2026`
-5. `{input_city} new law OR regulation approved site:gov OR site:legistar.com`
-6. `{input_city} city council vote results recent`
-7. `{input_city} city council upcoming meeting schedule agenda`
-8. `{input_city} public hearing scheduled zoning OR housing OR budget 2026`
+5. `{input_city} city council vote results recent`
+6. `{input_city} city council upcoming meeting schedule agenda`
 
-Searches 7 and 8 are dedicated to finding legislative events — run them even if you already have enough legislation findings.
+Search 6 is dedicated to finding legislative events — run it even if you already have enough legislation findings.
 
 **If your first 4 searches return few or no results**, adapt your queries:
 - Try the city's official website domain directly (e.g., `site:sfgov.org`, `site:sandiego.gov`, `site:toronto.ca`)
@@ -77,7 +75,7 @@ Apply this classification to each source found:
 - Use the reflection tool after cross-referencing to confirm you haven't missed major legislative actions.
 
 ### Step 5 — Event Extraction (Required)
-This step is **mandatory**. After completing your legislation research, actively scan all sources already retrieved — and the results from searches 7 and 8 — for any legislative dates:
+This step is **mandatory**. After completing your legislation research, actively scan all sources already retrieved — and the results from search 6 — for any legislative dates:
 - City council meetings
 - Public hearings or comment periods
 - Committee sessions

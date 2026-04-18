@@ -1,9 +1,8 @@
 """Web search tool adapter for legislation discovery.
 
 Thin adapter that calls Tavily search functions and wraps results
-in LangGraph Commands for state updates.  PDF URLs are detected
-deterministically and their content is extracted inline via
-pymupdf4llm so it is available immediately in pipeline state.
+in LangGraph Commands for state updates.  Returns URLs only — content
+fetching and PDF extraction are handled downstream by content_retrieval.
 """
 
 import asyncio
@@ -14,8 +13,6 @@ from langchain_core.tools import tool, InjectedToolCallId
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from utils.content.compressor import compress_text
-from utils.content.pdf_extractor import is_pdf_url, download_and_parse_pdf
 from utils.tools._helpers import ok, err
 from utils.tools.utils.tavily import search_legislation
 
@@ -58,10 +55,6 @@ async def web_search(
     Uses Tavily search with a legislation profile to prioritize official government
     sites, legislative databases, and authoritative news sources.
 
-    PDF results are detected automatically (via Content-Type / URL suffix) and
-    their content is extracted and compressed inline so downstream nodes do not
-    need to re-fetch them.
-
     Args:
         query: The search query — e.g. "Austin city council bylaws March 2026" or
                "municipal ordinance zoning city council passed".
@@ -79,42 +72,16 @@ async def web_search(
 
         results = _extract_search_results(raw_results)
 
-        legislation_sources: list[str | dict] = []
-        pdf_count = 0
-
+        legislation_sources: list[str] = []
         for result in results:
             url = result.get("url", "")
-            if not url:
-                continue
+            if url:
+                legislation_sources.append(url)
 
-            # --- PDF detection & inline extraction ---
-            if is_pdf_url(url):
-                content = download_and_parse_pdf(url)
-                if content:
-                    compressed = compress_text(content)
-                    legislation_sources.append({
-                        "url": url,
-                        "content": compressed,
-                        "source": "pdf",
-                    })
-                    pdf_count += 1
-                    logger.info("PDF extracted inline: %s", url)
-                    continue
-                # If PDF extraction failed, fall through to plain URL.
-
-            legislation_sources.append(url)
-
-        summary_lines = []
-        for source in legislation_sources:
-            if isinstance(source, dict):
-                summary_lines.append(f"  - {source['url']} [PDF content extracted]")
-            else:
-                summary_lines.append(f"  - {source}")
-
+        summary_lines = [f"  - {url}" for url in legislation_sources]
         summary = (
             f"Web search for '{query}' (city: {city}) returned "
-            f"{len(legislation_sources)} result(s)"
-            f" ({pdf_count} PDF(s) extracted inline):\n"
+            f"{len(legislation_sources)} result(s):\n"
             + "\n".join(summary_lines)
         )
 
