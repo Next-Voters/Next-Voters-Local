@@ -44,7 +44,7 @@ def run_pipeline_instances(
     if not ordered_targets:
         return results_by_target
 
-    with ThreadPoolExecutor(max_workers=len(ordered_targets)) as executor:
+    with ThreadPoolExecutor(max_workers=min(4, len(ordered_targets))) as executor:
         futures = {
             executor.submit(pipeline_runner, city, topic): (city, topic)
             for city, topic in ordered_targets

@@ -82,7 +82,7 @@ def download_and_parse_pdf(url: str) -> str:
         doc.close()
 
         # Cap extracted text to prevent memory issues with huge legislative PDFs.
-        _MAX_EXTRACTED_CHARS = 50_000
+        _MAX_EXTRACTED_CHARS = 20_000
         if len(markdown_text) > _MAX_EXTRACTED_CHARS:
             markdown_text = markdown_text[:_MAX_EXTRACTED_CHARS]
             logger.info(
