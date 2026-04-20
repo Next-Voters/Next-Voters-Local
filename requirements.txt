@@ -12,6 +12,6 @@ supabase
 markdown
 openai
 tavily-python
-llmlingua
+huggingface_hub
 deepl
 pymupdf4llm

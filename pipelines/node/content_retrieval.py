@@ -71,6 +71,10 @@ def run_content_retrieval(inputs: ChainData) -> ChainData:
     per_url_cap = CONTENT_TOTAL_CHAR_BUDGET // max(len(ordered_urls), 1)
     per_url_cap = max(CONTENT_MIN_CHARS_PER_URL, min(CONTENT_MAX_CHARS_PER_URL, per_url_cap))
 
+    # Query passed to the compressor so it can rank segments by topical relevance.
+    # Falls back to unconditional scoring when no topic is set (e.g., city-wide runs).
+    compression_query = (inputs.get("topic") or "").strip() or None
+
     # Fetch non-PDF URLs via Tavily Extract.
     url_to_content: dict[str, str] = {}
     if urls_to_fetch:
@@ -105,12 +109,12 @@ def run_content_retrieval(inputs: ChainData) -> ChainData:
         raw = url_to_content[url]
         if len(raw) > per_url_cap:
             raw = raw[:per_url_cap]
-        return compress_text(raw)
+        return compress_text(raw, query=compression_query)
 
-    # Compress newly-fetched pages in parallel. BERT forward passes release
-    # the GIL, so threads give real wall-clock wins over the previous
-    # sequential compress_text loop. Raw text is capped at per_url_cap
-    # before compression to keep the downstream LLM context bounded.
+    # Compress newly-fetched pages in parallel. Each compression fans out
+    # remote HF Inference calls for segment scoring, so threads overlap
+    # network latency across URLs. Raw text is capped at per_url_cap before
+    # compression to keep the downstream LLM context bounded.
     compress_targets = [u for u in ordered_urls if u in url_to_content and u not in pre_fetched]
     compressed_by_url: dict[str, str] = {}
     if compress_targets:
