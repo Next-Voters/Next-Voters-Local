@@ -5,7 +5,11 @@ from typing import NotRequired, Annotated, TypedDict
 import operator
 
 from langchain_core.messages import BaseMessage
-from utils.schemas.pydantic import ReflectionEntry, WriterOutput
+from utils.schemas.pydantic import (
+    ReflectionEntry,
+    SourceAssessment,
+    WriterOutput,
+)
 
 
 class BaseAgentState(TypedDict):
@@ -25,6 +29,8 @@ class LegislationFinderState(BaseAgentState):
     # Items are plain URL strings for HTML pages or dicts with pre-fetched
     # PDF content: {"url": str, "content": str, "source": "pdf"}.
     legislation_sources: NotRequired[Annotated[list[str | dict], operator.add]]
+    # Per-source outputs produced by the supervisor's parallel sub-agent pass.
+    source_assessments: NotRequired[list[SourceAssessment]]
 
 
 class ChainData(TypedDict):

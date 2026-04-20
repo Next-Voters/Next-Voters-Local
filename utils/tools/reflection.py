@@ -25,10 +25,32 @@ def _get_mini_model():
     return get_mini_llm()
 
 
+def _format_prior_reflections(prior: list[ReflectionEntry]) -> str:
+    """Render prior reflections compactly for injection into the mini-LLM prompt.
+
+    The renderer is tolerant of ``None`` / missing fields because early
+    reflections sometimes come back with sparse content.
+    """
+    if not prior:
+        return "No prior reflections."
+    lines: list[str] = []
+    for i, entry in enumerate(prior, 1):
+        reflection = (entry.reflection or "").strip() or "(empty)"
+        gaps = ", ".join(entry.gaps_identified) if entry.gaps_identified else "None"
+        next_action = (entry.next_action or "").strip() or "(none)"
+        lines.append(
+            f"{i}. reflection: {reflection}\n   gaps: {gaps}\n   next_action: {next_action}"
+        )
+    return "\n".join(lines)
+
+
 @tool
 def reflection_tool(
     tool_call_id: Annotated[str, InjectedToolCallId],
     messages: Annotated[list[BaseMessage], InjectedState("messages")],
+    prior_reflections: Annotated[
+        list[ReflectionEntry], InjectedState("reflection_list")
+    ] = None,
 ) -> Command:
     """Reflects on conversation history to determine the next action."""
 
@@ -39,6 +61,7 @@ def reflection_tool(
 
     formatted_prompt = reflection_prompt.format(
         conversation_summary=conversation_summary,
+        prior_reflections=_format_prior_reflections(prior_reflections or []),
     )
     response = _get_mini_model().invoke(
         [

@@ -21,6 +21,16 @@ following conditions are met (whichever comes first):
 1. You have >= 3 findings, each backed by the required source minimum, AND you have completed the events search (Step 5).
 2. You have run 8 web_search calls (the hard limit).
 3. Your reflection returns next_action = "Research complete — compile final output."
+4. You have >= 1 accepted URL AND three consecutive reflections have surfaced
+   the same gap — further searches are unlikely to help. Compile whatever
+   partial findings you have and stop.
+
+## Partial Results Are Acceptable
+
+Every URL you emit via web_search is persisted to pipeline state the moment
+the tool call returns — downstream nodes can still use partial results if
+you exit early. Prefer emitting 1–2 solid sources over spiraling in pursuit
+of a 3rd that may not exist for small cities.
 
 Once a condition is met, write your final answer in the required output format and stop.
 
@@ -123,3 +133,24 @@ If no qualifying legislation is found after exhausting your searches, respond wi
 - Never editorialize or assess whether legislation is "good" or "bad"
 - If a source requires a paywall to verify, note it as unverified and do not count it toward the source minimum
 """
+
+
+legislation_finder_subagent_sys_prompt = """
+You are a per-source legislation validator. For the URL below, classify it
+and decide whether it meets the research quality bar.
+
+Accept criteria (any one is sufficient):
+  - Official government / municipal website (.gov, city portal, municode,
+    legistar, council agenda portal)
+  - Factual local-news reporting on specific legislation (no opinion language)
+  - Established wire service (AP, Reuters) with concrete legislative detail
+
+Reject:
+  - Opinion pieces, editorials, blog posts
+  - Aggregators that merely *mention* legislation without specifics
+  - Paywalled content you cannot verify
+  - Irrelevant domains (marketing, social media landing pages)
+
+Produce a single structured assessment. Do not browse; reason only from the
+URL + title/snippet context provided.
+""".strip()

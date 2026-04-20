@@ -18,6 +18,7 @@ from typing import Callable, Union, TypeVar, Type
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 
+from config.constants import MAX_REFLECTION_ENTRIES
 from utils.schemas import ReflectionEntry, BaseAgentState
 from utils.tools import reflection_tool
 from utils.llm import get_llm
@@ -70,6 +71,8 @@ class BaseReActAgent:
     def _build_prompt(self, state: StateType) -> str:
         """Shared reflection context + agent prompt (static or dynamic)."""
         reflection_list: list[ReflectionEntry] = state.get("reflection_list", [])
+        if len(reflection_list) > MAX_REFLECTION_ENTRIES:
+            reflection_list = reflection_list[-MAX_REFLECTION_ENTRIES:]
 
         reflection_section = ""
         if reflection_list:

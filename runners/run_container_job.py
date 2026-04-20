@@ -8,7 +8,7 @@ import logging
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 try:
     from dotenv import load_dotenv
@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 
 def run_pipeline_instances(
-    pipeline_runner: Callable[[str, str], dict[str, Any]],
     targets: Sequence[tuple[str, str]],
 ) -> dict[tuple[str, str], dict[str, Any]]:
     """Execute one pipeline instance per (city, topic) target concurrently."""
@@ -46,7 +45,7 @@ def run_pipeline_instances(
 
     with ThreadPoolExecutor(max_workers=len(ordered_targets)) as executor:
         futures = {
-            executor.submit(pipeline_runner, city, topic): (city, topic)
+            executor.submit(run_pipeline, city, topic): (city, topic)
             for city, topic in ordered_targets
         }
 
@@ -101,7 +100,7 @@ def run_pipelines_for_cities_and_topics(
     """Execute the NV Local pipeline concurrently for all (city, topic) pairs."""
 
     targets = [(city, topic) for city in cities for topic in topics]
-    return run_pipeline_instances(run_pipeline, targets)
+    return run_pipeline_instances(targets)
 
 
 def render_city_topic_reports_markdown(
@@ -144,7 +143,7 @@ def main() -> int:
 
     # Run pipelines for all (city, topic) pairs
     targets = [(city, topic) for city in cities for topic in topics]
-    results = run_pipeline_instances(run_pipeline, targets)
+    results = run_pipeline_instances(targets)
     report = render_pipeline_reports_markdown(results, targets)
 
     if output_path:

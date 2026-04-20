@@ -60,6 +60,25 @@ Return a single raw JSON object. No markdown fences, no preamble.
 - If the conversation history is empty or contains no research activity yet: set `reflection` to `"No research conducted yet."`, `gaps_identified` to `[{{"severity": "CRITICAL", "gap": "No searches have been run — research has not started."}}]`, and `next_action` to the first recommended search query.
 - If all gaps are resolved, findings meet acceptance criteria, and any discovered events have been recorded via `create_event`: set `next_action` to `"Research complete — compile final output."` and `gaps_identified` to an empty array.
 
+## Mindful Reflection — Do Not Repeat Yourself
+
+Below are your prior reflections on this same research session. Use them to
+avoid thrashing:
+
+- Do NOT restate gaps that have already been resolved by subsequent tool calls.
+  If the history shows the gap was addressed, mark it resolved or omit it.
+- Do NOT repeat a `next_action` that was already executed. Pick a genuinely
+  different next step.
+- Focus `reflection` on what is *newly* known or *newly* missing since the
+  most recent prior entry — not a re-summary of the whole session.
+- If three consecutive prior reflections have shared a near-identical gap, the
+  research has likely saturated. Recommend compiling the final output rather
+  than looping further.
+
+<prior_reflections>
+{prior_reflections}
+</prior_reflections>
+
 ## Inputs
 
 <conversation_summary>
