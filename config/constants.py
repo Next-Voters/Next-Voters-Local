@@ -25,7 +25,7 @@ WEB_SEARCH_MAX_RESULTS: int = 5
 
 
 # ---------------------------------------------------------------------------
-# Context compression (HF-hosted LongLLMLingua)
+# Context compression (LongLLMLingua, local)
 # ---------------------------------------------------------------------------
 
 # Fraction of tokens to retain after compression (0.0 = nothing, 1.0 = keep all).
@@ -34,15 +34,6 @@ COMPRESSION_RATE: float = 0.4
 
 # Skip compression for content shorter than this — overhead not worth it.
 MIN_CHARS_TO_COMPRESS: int = 1_000
-
-# Hugging Face Inference Providers scorer model. Any small decoder LM served via
-# Text Generation Inference works — we only consume per-token prefill logprobs.
-# Auth uses HF_TOKEN; HF routes and bills centrally across partner providers.
-HF_SCORER_MODEL: str = "Qwen/Qwen2.5-0.5B"
-
-# Per-call timeout for HF Inference. Serverless providers can cold-start on the
-# first request of the day, so leave headroom rather than tightening this.
-HF_SCORER_TIMEOUT_S: float = 30.0
 
 # ---------------------------------------------------------------------------
 # Agent context limits
