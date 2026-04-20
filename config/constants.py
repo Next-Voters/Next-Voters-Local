@@ -25,7 +25,7 @@ WEB_SEARCH_MAX_RESULTS: int = 5
 
 
 # ---------------------------------------------------------------------------
-# Context compression (LLMLingua-2)
+# Context compression (LongLLMLingua, local)
 # ---------------------------------------------------------------------------
 
 # Fraction of tokens to retain after compression (0.0 = nothing, 1.0 = keep all).
