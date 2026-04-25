@@ -23,7 +23,7 @@ from evals.metrics.no_hallucination import (
     NoHallucinationMetric,
     ClaimVerifiabilityMetric,
 )
-from utils.schemas import WriterOutput
+from utils.schemas import WriterOutput, LegislationItem
 
 
 class TestSummaryWriter:
@@ -39,22 +39,23 @@ class TestSummaryWriter:
     def test_writer_output_schema_validation(self):
         """Test WriterOutput schema correctly validates output."""
         valid_output = WriterOutput(
-            title="Test Title",
-            summary="Test summary",
-            body="Test body content",
+            items=[
+                LegislationItem(
+                    header="Test headline",
+                    description="Test description of legislation.",
+                )
+            ]
         )
 
-        assert valid_output.title == "Test Title"
-        assert valid_output.summary == "Test summary"
-        assert valid_output.body == "Test body content"
+        assert len(valid_output.items) == 1
+        assert valid_output.items[0].header == "Test headline"
+        assert valid_output.items[0].description == "Test description of legislation."
 
     def test_writer_output_optional_fields(self):
-        """Test WriterOutput handles optional fields correctly."""
+        """Test WriterOutput handles empty items list correctly."""
         minimal_output = WriterOutput()
 
-        assert minimal_output.title is None
-        assert minimal_output.summary is None
-        assert minimal_output.body is None
+        assert minimal_output.items == []
 
     @patch("pipelines.node.summary_writer._get_model")
     def test_summary_writer_produces_valid_schema(
@@ -64,9 +65,16 @@ class TestSummaryWriter:
     ):
         """Test that summary writer produces valid WriterOutput."""
         mock_model.return_value.invoke.return_value = WriterOutput(
-            title="Toronto Legislation Update",
-            summary="City Council passed climate and housing legislation.",
-            body="- Climate Action: 65% GHG reduction\n- Housing: 20% affordable units",
+            items=[
+                LegislationItem(
+                    header="Climate Action Initiative passed 38-7",
+                    description="City Council passed Bill 1 establishing a 65% GHG reduction target by 2030.",
+                ),
+                LegislationItem(
+                    header="Affordable Housing Strategy requires 20% affordable units",
+                    description="Bill 2 passed 42-3, requiring 20% affordable units in large developments.",
+                ),
+            ]
         )
 
         from pipelines.node.summary_writer import research_summary_writer
@@ -78,21 +86,17 @@ class TestSummaryWriter:
         assert "legislation_summary" in result
         summary = result["legislation_summary"]
         assert summary is not None
-        assert summary.title is not None
-        assert summary.summary is not None
-        assert summary.body is not None
+        assert len(summary.items) == 2
+        assert summary.items[0].header is not None
+        assert summary.items[0].description is not None
 
     @patch("pipelines.node.summary_writer._get_model")
     def test_summary_writer_handles_no_content(
         self,
         mock_model: MagicMock,
     ):
-        """Test that summary writer handles empty notes gracefully."""
-        mock_model.return_value.invoke.return_value = WriterOutput(
-            title="No Content",
-            summary=None,
-            body=None,
-        )
+        """Test that summary writer handles empty items gracefully."""
+        mock_model.return_value.invoke.return_value = WriterOutput(items=[])
 
         from pipelines.node.summary_writer import research_summary_writer
         from utils.schemas import ChainData
@@ -101,6 +105,7 @@ class TestSummaryWriter:
         result = research_summary_writer(inputs)
 
         assert "legislation_summary" in result
+        assert result["legislation_summary"] is None
 
 
 class TestSummaryQualityMetric:
@@ -114,15 +119,17 @@ class TestSummaryQualityMetric:
         """Test metric scores high for quality summary."""
         test_case = LLMTestCase(
             input="Summarize the legislation for Toronto",
-            actual_output="""## Toronto City Council Legislation Update
+            actual_output="""## ECONOMY & HOUSING
 
-### Summary
-City Council passed two major bills: Climate Action Initiative (Bill 1) targeting 65% GHG reduction by 2030, and Affordable Housing Strategy (Bill 2) requiring 20% affordable units in new developments.
+**Climate Action Initiative passed 38-7**
+Toronto
 
-### Key Points
-- **Climate Bill (Bill 1)**: Passed 38-7, $50M renewable energy investment
-- **Housing Bill (Bill 2)**: Passed 42-3, $100M housing trust established
-- Both bills align with council priorities for 2024""",
+City Council passed Bill 1 targeting 65% GHG reduction by 2030. The bill mandates building retrofits and allocates $50M for renewable energy investment.
+
+**Affordable Housing Strategy requires 20% affordable units**
+Toronto
+
+Bill 2 passed 42-3, requiring 20% affordable units in new developments. It establishes a $100M housing trust and implements income-based rent control.""",
             retrieval_context=mock_retrieval_context,
         )
 
@@ -173,27 +180,29 @@ class TestSchemaComplianceMetric:
 
         test_case = LLMTestCase(
             input="Summarize the legislation",
-            actual_output="""# Title of Legislation
+            actual_output="""## ECONOMY & HOUSING
 
-## Summary
-Brief 1-2 sentence summary of the legislation.
+**Council passes eviction package**
+Toronto
 
-## Details
-- Point 1
-- Point 2
-- Point 3""",
+The Council voted 48-18 to extend tenant protections to 1.6 million market-rate units.
+
+**Albany advances FAB cap reform**
+New York State
+
+A-1234 heard in committee 12-4, lifting the 12.0 five-acre-minimum cap.""",
         )
 
         metric.measure(test_case)
         assert metric.score >= 0.8
 
-    def test_missing_title(self):
-        """Test detection of missing title."""
+    def test_missing_topic_header(self):
+        """Test detection of missing topic header."""
         metric = SchemaComplianceMetric()
 
         test_case = LLMTestCase(
             input="Summarize the legislation",
-            actual_output="""Summary of legislation content here.
+            actual_output="""Some content without topic header or item structure.
 
 Details:
 - Point 1
@@ -203,16 +212,15 @@ Details:
         metric.measure(test_case)
         assert metric.score < 1.0
 
-    def test_missing_body(self):
-        """Test detection of missing body."""
+    def test_missing_item_structure(self):
+        """Test detection of missing item structure."""
         metric = SchemaComplianceMetric()
 
         test_case = LLMTestCase(
             input="Summarize the legislation",
-            actual_output="""# Title of Legislation
+            actual_output="""## ECONOMY & HOUSING
 
-## Summary
-Brief summary of the legislation.""",
+Just a paragraph of text without bold headers or item structure.""",
         )
 
         metric.measure(test_case)
@@ -228,9 +236,13 @@ class TestSummaryWriterEdgeCases:
         long_notes = "Point " * 1000
 
         mock_model.return_value.invoke.return_value = WriterOutput(
-            title="Long Document Summary",
-            summary="Concise summary of lengthy content.",
-            body="- " + "\n- ".join([f"Point {i}" for i in range(50)]),
+            items=[
+                LegislationItem(
+                    header=f"Point {i} summary",
+                    description=f"Details about point {i}.",
+                )
+                for i in range(5)
+            ]
         )
 
         from pipelines.node.summary_writer import research_summary_writer
@@ -245,45 +257,48 @@ class TestSummaryWriterEdgeCases:
     def test_unicode_content(self, mock_model: MagicMock):
         """Test handling of unicode characters."""
         mock_model.return_value.invoke.return_value = WriterOutput(
-            title="Café and Restaurant Regulations",
-            summary="New regulations for café outdoor seating in Toronto.",
-            body="- Unicode: café, naïve, résumé\n- Special chars: © ® ™",
+            items=[
+                LegislationItem(
+                    header="Cafe and Restaurant Regulations",
+                    description="New regulations for cafe outdoor seating in Toronto. The rules cover patio permits and noise limits.",
+                )
+            ]
         )
 
         from pipelines.node.summary_writer import research_summary_writer
         from utils.schemas import ChainData
 
-        inputs: ChainData = {"notes": "Café regulations: Unicode content"}
+        inputs: ChainData = {"notes": "Cafe regulations: Unicode content"}
         result = research_summary_writer(inputs)
 
         assert result["legislation_summary"] is not None
-        assert "café" in result["legislation_summary"].title.lower()
+        assert "Cafe" in result["legislation_summary"].items[0].header
 
     @patch("pipelines.node.summary_writer._get_model")
-    def test_no_legislation_patterns(self, mock_model: MagicMock):
-        """Test that 'no legislation' patterns are handled."""
-        no_content_patterns = [
-            "No Content",
-            "No Recent Legislation",
-            "None",
-            "N/A",
-            "no recent legislation found",
-        ]
+    def test_empty_items_returns_none(self, mock_model: MagicMock):
+        """Test that empty items list triggers None return."""
+        mock_model.return_value.invoke.return_value = WriterOutput(items=[])
 
         from pipelines.node.summary_writer import research_summary_writer
         from utils.schemas import ChainData
 
-        for pattern in no_content_patterns:
-            mock_model.return_value.invoke.return_value = WriterOutput(
-                title=pattern,
-                summary="No content",
-                body="No body",
-            )
+        inputs: ChainData = {"notes": "Some notes"}
+        result = research_summary_writer(inputs)
 
-            inputs: ChainData = {"notes": "Some notes"}
-            result = research_summary_writer(inputs)
+        assert result["legislation_summary"] is None
 
-            assert result["legislation_summary"] is None
+    @patch("pipelines.node.summary_writer._get_model")
+    def test_none_response_returns_none(self, mock_model: MagicMock):
+        """Test that None LLM response triggers None return."""
+        mock_model.return_value.invoke.return_value = None
+
+        from pipelines.node.summary_writer import research_summary_writer
+        from utils.schemas import ChainData
+
+        inputs: ChainData = {"notes": "Some notes"}
+        result = research_summary_writer(inputs)
+
+        assert result["legislation_summary"] is None
 
 
 class TestMultiDimensionalSummaryMetric:
@@ -351,15 +366,17 @@ def run_summary_writer_evaluation() -> dict[str, Any]:
     test_cases = [
         LLMTestCase(
             input="Summarize Toronto legislation for January 2024",
-            actual_output="""# Toronto City Council Legislation Update
+            actual_output="""## ECONOMY & HOUSING
 
-## Summary
-City Council passed two significant bills: Climate Action Initiative (Bill 1) establishing 65% GHG reduction target and Affordable Housing Strategy (Bill 2) requiring 20% affordable units in new developments.
+**Climate Action Initiative passed 38-7**
+Toronto
 
-## Full Report
-- **Climate Action Initiative (Bill 1)**: Passed 38-7, 65% GHG reduction by 2030, $50M renewable investment
-- **Affordable Housing Strategy (Bill 2)**: Passed 42-3, 20% affordable units, $100M housing trust
-- Both bills represent major council priorities for 2024""",
+City Council passed Bill 1 establishing a 65% GHG reduction target by 2030. The bill mandates building retrofits and allocates $50M for renewable energy.
+
+**Affordable Housing Strategy requires 20% affordable units**
+Toronto
+
+Bill 2 passed 42-3, requiring 20% affordable units in large developments. It establishes a $100M housing trust.""",
             retrieval_context=retrieval_context,
         ),
         LLMTestCase(

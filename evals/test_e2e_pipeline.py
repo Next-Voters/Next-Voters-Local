@@ -138,15 +138,13 @@ class TestPipelineComponents:
         self, mock_invoke: MagicMock, sample_writer_output: dict[str, Any]
     ):
         """Test summary writer chain integration."""
-        from utils.schemas import WriterOutput
+        from utils.schemas import WriterOutput, LegislationItem
 
         mock_invoke.return_value = {
             "city": "Toronto",
             "notes": "test notes",
             "legislation_summary": WriterOutput(
-                title=sample_writer_output["title"],
-                summary=sample_writer_output["summary"],
-                body=sample_writer_output["body"],
+                items=[LegislationItem(**item) for item in sample_writer_output["items"]]
             ),
         }
 
@@ -167,12 +165,14 @@ class TestPipelineComponents:
         }
 
         from pipelines.node.report_formatter import report_formatter_chain
-        from utils.schemas import WriterOutput
+        from utils.schemas import WriterOutput, LegislationItem
 
         result = report_formatter_chain.invoke(
             {
+                "city": "Toronto",
+                "topic": "Economy",
                 "legislation_summary": WriterOutput(
-                    title="Test", summary="Test", body="Test"
+                    items=[LegislationItem(header="Test", description="Test description.")]
                 ),
             }
         )
@@ -211,9 +211,8 @@ class TestPipelineOutput:
 
     def test_report_contains_expected_structure(self, sample_markdown_report: str):
         """Test that report has expected markdown structure."""
-        assert "# " in sample_markdown_report
         assert "## " in sample_markdown_report
-        assert sample_markdown_report.count("#") >= 2
+        assert "**" in sample_markdown_report
 
 
 class TestPipelineIntegration:
@@ -229,15 +228,13 @@ class TestPipelineIntegration:
         sample_writer_output: dict[str, Any],
     ):
         """Test complete pipeline with all mocks."""
-        from utils.schemas import WriterOutput
+        from utils.schemas import WriterOutput, LegislationItem
 
         mock_search.return_value = {
             "web": {"results": [{"title": "Test", "url": "https://test.com"}]}
         }
         mock_model.return_value.invoke.return_value = WriterOutput(
-            title=sample_writer_output["title"],
-            summary=sample_writer_output["summary"],
-            body=sample_writer_output["body"],
+            items=[LegislationItem(**item) for item in sample_writer_output["items"]]
         )
 
         from pipelines.nv_local import run_pipeline

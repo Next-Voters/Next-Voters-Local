@@ -202,11 +202,19 @@ def dispatch_emails_to_subscribers(
         sections_html = build_all_topic_sections_html(topic_html_pairs, referral_code=referral_code, city=city)
         social_share_urls = build_social_share_urls(referral_code=referral_code)
         toc_html = build_table_of_contents_html(topic_names)
+
+        intro = (
+            f"Here\u2019s what {city}, the statehouse, and Washington actually did this "
+            f"week \u2014 organized by topic, every claim cited."
+        )
+
         html_body = render_template(
             "",
             topic_sections_html=sections_html,
             social_share_urls=social_share_urls,
             table_of_contents_html=toc_html,
+            greeting="Good morning, New Voters.",
+            intro=intro,
         )
 
         send_queue.append({
@@ -257,7 +265,7 @@ def dispatch_emails_to_subscribers(
                         send_single_email,
                         pool,
                         item["contact"],
-                        f"NV Local Report - {item['city']}",
+                        f"Your {item['city']} brief \u2014 city, state, and Congress this week",
                         item["html_body"],
                         failures_queue,
                     )

@@ -141,36 +141,42 @@ def sample_legislation_notes() -> str:
 def sample_writer_output() -> dict[str, Any]:
     """Sample WriterOutput schema."""
     return {
-        "title": "Toronto City Council Legislation Update - January 2024",
-        "summary": "City Council passed significant climate action and housing legislation including a 65% GHG reduction target and mandatory affordable housing requirements.",
-        "body": """- **Climate Action Initiative (Bill 1)**: Passed 38-7, establishes 65% GHG reduction target by 2030, mandates building retrofits, $50M renewable energy investment
-
-- **Affordable Housing Strategy (Bill 2)**: Passed 42-3, requires 20% affordable units in large developments, establishes $100M housing trust, implements income-based rent control
-
-- **Transit Expansion**: TTC approved Ontario Line expansion plan with federal and provincial funding
-
-- Key themes: Housing affordability and climate sustainability dominate 2024 legislative agenda""",
+        "items": [
+            {
+                "header": "Climate Action Initiative passed 38-7",
+                "description": "City Council passed Bill 1 establishing a 65% GHG reduction target by 2030. The bill mandates building retrofits and allocates $50M for renewable energy investment.",
+            },
+            {
+                "header": "Affordable Housing Strategy requires 20% affordable units",
+                "description": "Bill 2 passed 42-3, requiring 20% affordable units in large developments. It establishes a $100M housing trust and implements income-based rent control.",
+            },
+            {
+                "header": "TTC approves Ontario Line expansion plan",
+                "description": "The Toronto Transit Commission approved the Ontario Line expansion plan. The project will receive federal and provincial funding.",
+            },
+        ],
     }
 
 
 @pytest.fixture
 def sample_markdown_report() -> str:
     """Sample markdown report output."""
-    return """# Toronto City Council Legislation Update - January 2024
+    return """## ECONOMY & HOUSING
 
-## Summary
+**Climate Action Initiative passed 38-7**
+Toronto
 
-City Council passed significant climate action and housing legislation including a 65% GHG reduction target and mandatory affordable housing requirements.
+City Council passed Bill 1 establishing a 65% GHG reduction target by 2030. The bill mandates building retrofits and allocates $50M for renewable energy investment.
 
-## Full Report
+**Affordable Housing Strategy requires 20% affordable units**
+Toronto
 
-- **Climate Action Initiative (Bill 1)**: Passed 38-7, establishes 65% GHG reduction target by 2030, mandates building retrofits, $50M renewable energy investment
+Bill 2 passed 42-3, requiring 20% affordable units in large developments. It establishes a $100M housing trust and implements income-based rent control.
 
-- **Affordable Housing Strategy (Bill 2)**: Passed 42-3, requires 20% affordable units in large developments, establishes $100M housing trust, implements income-based rent control
+**TTC approves Ontario Line expansion plan**
+Toronto
 
-- **Transit Expansion**: TTC approved Ontario Line expansion plan with federal and provincial funding
-
-- Key themes: Housing affordability and climate sustainability dominate 2024 legislative agenda
+The Toronto Transit Commission approved the Ontario Line expansion plan. The project will receive federal and provincial funding.
 """
 
 
@@ -186,9 +192,12 @@ def mock_llm_response() -> MagicMock:
 def mock_structured_llm_response() -> dict[str, Any]:
     """Mock structured LLM response (WriterOutput)."""
     return {
-        "title": "Toronto City Council Legislation Update",
-        "summary": "Summary of recent legislation.",
-        "body": "Bullet points of legislation details.",
+        "items": [
+            {
+                "header": "Toronto City Council Legislation Update",
+                "description": "Summary of recent legislation. Details of key decisions.",
+            },
+        ],
     }
 
 

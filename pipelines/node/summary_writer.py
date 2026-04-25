@@ -24,19 +24,7 @@ def research_summary_writer(inputs: ChainData) -> ChainData:
         ],
     )
 
-    if ai_generated_summary is None:
-        return {**inputs, "legislation_summary": None}
-
-    title_lower = (
-        ai_generated_summary.title.lower().strip() if ai_generated_summary.title else ""
-    )
-    no_title_patterns = ("no content", "no recent", "no legislation", "none", "")
-
-    if (
-        title_lower in no_title_patterns
-        or title_lower.startswith("no ")
-        or title_lower.startswith("n/a")
-    ):
+    if ai_generated_summary is None or not ai_generated_summary.items:
         return {**inputs, "legislation_summary": None}
 
     return {**inputs, "legislation_summary": ai_generated_summary}

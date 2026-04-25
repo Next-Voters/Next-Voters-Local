@@ -19,7 +19,7 @@ from evals.metrics.report_formatting import (
     MarkdownSyntaxMetric,
     create_report_formatting_metric,
 )
-from utils.schemas import ChainData, WriterOutput
+from utils.schemas import ChainData, WriterOutput, LegislationItem
 
 
 class TestReportFormatter:
@@ -42,10 +42,10 @@ class TestReportFormatter:
         from pipelines.node.report_formatter import report_formatter
 
         inputs: ChainData = {
+            "city": "Toronto",
+            "topic": "Economy & Housing",
             "legislation_summary": WriterOutput(
-                title=sample_writer_output["title"],
-                summary=sample_writer_output["summary"],
-                body=sample_writer_output["body"],
+                items=[LegislationItem(**item) for item in sample_writer_output["items"]]
             ),
         }
 
@@ -66,26 +66,32 @@ class TestReportFormatter:
         result = report_formatter(inputs)
 
         assert "markdown_report" in result
-        assert "No Legislation Found" in result["markdown_report"]
+        assert result["markdown_report"] == ""
 
     def test_report_includes_required_sections(self):
-        """Test that report includes all required sections."""
+        """Test that report includes topic header and item structure."""
         from pipelines.node.report_formatter import report_formatter
 
         inputs: ChainData = {
+            "city": "Toronto",
+            "topic": "Economy & Housing",
             "legislation_summary": WriterOutput(
-                title="Test Title",
-                summary="Test summary",
-                body="Test body content",
+                items=[
+                    LegislationItem(
+                        header="Test legislation headline",
+                        description="This is a test description of legislation.",
+                    )
+                ]
             ),
         }
 
         result = report_formatter(inputs)
         report = result["markdown_report"]
 
-        assert "# Test Title" in report
-        assert "## Summary" in report
-        assert "## Full Report" in report
+        assert "## ECONOMY & HOUSING" in report
+        assert "**Test legislation headline**" in report
+        assert "Toronto" in report
+        assert "This is a test description" in report
 
 
 class TestReportFormattingMetric:
@@ -99,14 +105,17 @@ class TestReportFormattingMetric:
         """Test metric scores high for well-formatted report."""
         test_case = LLMTestCase(
             input="Generate report for Toronto legislation",
-            actual_output="""# Toronto City Council Legislation Update
+            actual_output="""## ECONOMY & HOUSING
 
-## Summary
-City Council passed major climate and housing legislation in January 2024.
+**Climate Action Initiative passed 38-7**
+Toronto
 
-## Full Report
-- **Bill 1-2024**: Climate Action Initiative
-- **Bill 2-2024**: Affordable Housing Strategy
+City Council passed Bill 1 establishing a 65% GHG reduction target by 2030. The bill mandates building retrofits.
+
+**Affordable Housing Strategy requires 20% affordable units**
+Toronto
+
+Bill 2 passed 42-3, requiring 20% affordable units in large developments.
 """,
         )
 
@@ -131,9 +140,7 @@ Just some bullet points
         """Test metric detects missing required sections."""
         test_case = LLMTestCase(
             input="Generate report",
-            actual_output="""# Title
-
-Just some content without proper section headers.""",
+            actual_output="""Just some content without proper section headers or item structure.""",
         )
 
         self.metric.measure(test_case)
@@ -147,21 +154,19 @@ class TestSectionPresenceMetric:
         """Test detection of all required sections."""
         metric = SectionPresenceMetric(
             required_sections=[
-                "# Title",
-                "## Summary",
-                "## Full Report",
+                "## TOPIC HEADER",
+                "**Item Header**",
             ]
         )
 
         test_case = LLMTestCase(
             input="Generate report",
-            actual_output="""# Toronto Legislation
+            actual_output="""## ECONOMY & HOUSING
 
-## Summary
-Summary content here.
+**Climate Action Initiative passed 38-7**
+Toronto
 
-## Full Report
-Report content here.
+City Council passed Bill 1 establishing a 65% GHG reduction target.
 """,
         )
 
@@ -171,17 +176,12 @@ Report content here.
     def test_missing_sections(self):
         """Test detection of missing sections."""
         metric = SectionPresenceMetric(
-            required_sections=["# Title", "## Summary", "## Full Report"]
+            required_sections=["## TOPIC HEADER", "**Item Header**"]
         )
 
         test_case = LLMTestCase(
             input="Generate report",
-            actual_output="""# Title
-
-## Summary
-Summary here.
-
-Missing Full Report section.""",
+            actual_output="""Some text without proper topic headers or bold item headers.""",
         )
 
         metric.measure(test_case)
@@ -191,18 +191,20 @@ Missing Full Report section.""",
         """Test custom required sections."""
         metric = SectionPresenceMetric(
             required_sections=[
-                "# Executive Summary",
-                "## Legislation",
+                "## TOPIC HEADER",
+                "**Item Header**",
             ]
         )
 
         test_case = LLMTestCase(
             input="Generate report",
-            actual_output="""# Executive Summary
-Content
+            actual_output="""## TRANSPORTATION
 
-## Legislation
-Content""",
+**New bus routes approved for downtown**
+Toronto
+
+Three new bus routes will serve the downtown core starting March 1.
+""",
         )
 
         metric.measure(test_case)
@@ -218,23 +220,27 @@ class TestMarkdownSyntaxMetric:
 
         test_case = LLMTestCase(
             input="Generate report",
-            actual_output="""# Title
+            actual_output="""## ECONOMY & HOUSING
 
-## Section 1
+**Council passes eviction package**
+Toronto
 
-- Bullet point 1
-- Bullet point 2
+The Council voted 48-18 to extend tenant protections.
 
-**Bold text** and *italic text*
+**Albany advances FAB cap reform**
+New York State
 
-[Link text](https://example.com)
+A-1234 heard in committee 12-4.
 
 ---
 
-### Subsection
+## TRANSPORTATION
 
-1. Numbered item 1
-2. Numbered item 2""",
+**New subway line approved**
+Toronto
+
+The TTC approved the Ontario Line expansion.
+""",
         )
 
         metric.measure(test_case)
@@ -266,10 +272,10 @@ class TestReportFormatterIntegration:
         from pipelines.node.report_formatter import report_formatter
 
         inputs: ChainData = {
+            "city": "Toronto",
+            "topic": "Economy & Housing",
             "legislation_summary": WriterOutput(
-                title=sample_writer_output["title"],
-                summary=sample_writer_output["summary"],
-                body=sample_writer_output["body"],
+                items=[LegislationItem(**item) for item in sample_writer_output["items"]]
             ),
         }
 
@@ -278,58 +284,66 @@ class TestReportFormatterIntegration:
 
         assert isinstance(report, str)
         assert len(report) > 100
-        assert report.startswith("#")
+        assert report.startswith("##")
 
 
 class TestReportFormatterEdgeCases:
     """Edge case tests for report formatter."""
 
-    def test_empty_title(self):
-        """Test handling of empty title."""
+    def test_empty_items(self):
+        """Test handling of empty items list."""
         from pipelines.node.report_formatter import report_formatter
 
         inputs: ChainData = {
-            "legislation_summary": WriterOutput(
-                title="",
-                summary="Summary",
-                body="Body",
-            ),
+            "city": "Toronto",
+            "topic": "Economy",
+            "legislation_summary": None,
         }
 
         result = report_formatter(inputs)
         assert "markdown_report" in result
+        assert result["markdown_report"] == ""
 
-    def test_very_long_content(self):
-        """Test handling of very long content."""
+    def test_single_item(self):
+        """Test handling of a single legislation item."""
         from pipelines.node.report_formatter import report_formatter
 
-        long_body = "x" * 10000
-
         inputs: ChainData = {
+            "city": "Toronto",
+            "topic": "Housing",
             "legislation_summary": WriterOutput(
-                title="Long Report",
-                summary="A very long summary " * 100,
-                body=long_body,
+                items=[
+                    LegislationItem(
+                        header="New housing bill passed",
+                        description="The council approved a new housing bill.",
+                    )
+                ]
             ),
         }
 
         result = report_formatter(inputs)
-        assert len(result["markdown_report"]) > 10000
+        assert "## HOUSING" in result["markdown_report"]
+        assert "**New housing bill passed**" in result["markdown_report"]
 
-    def test_special_characters_in_title(self):
-        """Test handling of special characters in titles."""
+    def test_special_characters_in_header(self):
+        """Test handling of special characters in headers."""
         from pipelines.node.report_formatter import report_formatter
 
         inputs: ChainData = {
+            "city": "Toronto",
+            "topic": "Economy",
             "legislation_summary": WriterOutput(
-                title="Test: Special Chars & More (#1)",
-                summary="Summary with special chars",
-                body="- Point with **bold** and *italic*",
+                items=[
+                    LegislationItem(
+                        header="Test: Special Chars & More (#1)",
+                        description="Description with special chars.",
+                    )
+                ]
             ),
         }
 
         result = report_formatter(inputs)
-        assert "# Test:" in result["markdown_report"]
+        assert "**Test: Special Chars & More (#1)**" in result["markdown_report"]
 
 
 def run_report_formatter_evaluation() -> dict[str, Any]:
@@ -343,15 +357,17 @@ def run_report_formatter_evaluation() -> dict[str, Any]:
     test_cases = [
         LLMTestCase(
             input="Generate markdown report for Toronto legislation",
-            actual_output="""# Toronto City Council Legislation Update - January 2024
+            actual_output="""## ECONOMY & HOUSING
 
-## Summary
-City Council passed significant climate action and housing legislation including a 65% GHG reduction target and mandatory affordable housing requirements.
+**Climate Action Initiative passed 38-7**
+Toronto
 
-## Full Report
-- **Climate Action Initiative (Bill 1)**: Passed 38-7, establishes 65% GHG reduction target by 2030, mandates building retrofits, $50M renewable energy investment
+City Council passed Bill 1 establishing a 65% GHG reduction target by 2030. The bill mandates building retrofits and allocates $50M for renewable energy.
 
-- **Affordable Housing Strategy (Bill 2)**: Passed 42-3, requires 20% affordable units in large developments, establishes $100M housing trust, implements income-based rent control
+**Affordable Housing Strategy requires 20% affordable units**
+Toronto
+
+Bill 2 passed 42-3, requiring 20% affordable units in large developments. It establishes a $100M housing trust.
 """,
         ),
         LLMTestCase(

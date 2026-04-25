@@ -121,22 +121,24 @@ class SchemaComplianceMetric(GEval):
         )
 
     def _build_schema_criteria(self) -> str:
-        return """Validate that the output strictly follows the WriterOutput schema:
+        return """Validate that the output follows the structured legislation format:
 
-    Required fields:
-    - title: string (non-empty, descriptive title of the legislation)
-    - body: string (main content in bullet-point format)
-    - summary: string (brief summary of the content)
-    
+    Required structure:
+    - ALL CAPS topic header (## TOPIC NAME)
+    - One or more legislation items, each with:
+      - Bold header (**headline**)
+      - City/source line
+      - Description paragraph (2-3 sentences)
+
     Quality requirements:
-    - All three fields must be present
-    - title should be concise but descriptive
-    - body should be in bullet-point format
-    - summary should be 1-3 sentences maximum
-    
+    - Topic header must be present and in ALL CAPS
+    - Each item must have a bold header and description
+    - Descriptions should be 2-3 factual sentences
+    - Items should be clearly separated
+
     Score 1.0 only if ALL requirements met.
     Score 0.5 if minor formatting issues.
-    Score 0.0 if fields missing or fundamentally wrong format."""
+    Score 0.0 if structure missing or fundamentally wrong format."""
 
 
 def create_summary_quality_metric(

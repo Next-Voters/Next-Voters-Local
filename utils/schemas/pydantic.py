@@ -49,16 +49,21 @@ class SourceAssessment(BaseModel):
     )
 
 
-class WriterOutput(BaseModel):
-    """Structured reflection output produced by the reflection tool."""
+class LegislationItem(BaseModel):
+    """A single legislation action with headline and description."""
 
-    title: Optional[str] = Field(
-        default=None, description="Title of the written content"
+    header: str = Field(
+        description="Short factual headline, e.g. 'Council passes good cause eviction package'"
     )
-    body: Optional[str] = Field(
-        default=None,
-        description="Main written content. They should be in bullet-point format.",
+    description: str = Field(
+        description="2-3 sentence plain-language description of what happened"
     )
-    summary: Optional[str] = Field(
-        default=None, description="Brief summary of the content"
+
+
+class WriterOutput(BaseModel):
+    """Structured output: list of legislation items discovered for a topic."""
+
+    items: list[LegislationItem] = Field(
+        default_factory=list,
+        description="List of legislation items found for this topic",
     )

@@ -56,6 +56,8 @@ def render_template(
     topic_sections_html: str | None = None,
     social_share_urls: dict[str, str] | None = None,
     table_of_contents_html: str | None = None,
+    greeting: str = "Good morning, New Voters.",
+    intro: str = "",
 ) -> str:
     """Render the email template with HTML content and optional social share URLs.
 
@@ -66,11 +68,15 @@ def render_template(
                            If None, default URLs (without referral code) are used.
         table_of_contents_html: Optional HTML for the table of contents to replace
                                 {{TABLE_OF_CONTENTS}}. If None, the placeholder is removed.
+        greeting: Greeting text for the email header.
+        intro: Introductory text describing what the email covers.
 
     Returns:
         Complete HTML email body.
     """
     template = load_template()
+    template = template.replace("{{GREETING}}", greeting)
+    template = template.replace("{{INTRO}}", intro)
     template = template.replace("{{TABLE_OF_CONTENTS}}", table_of_contents_html or "")
     if topic_sections_html is not None:
         template = template.replace("{{TOPIC_SECTIONS}}", topic_sections_html)

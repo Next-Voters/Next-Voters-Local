@@ -13,33 +13,33 @@ from deepeval.test_case import LLMTestCaseParams
 def report_formatting_criteria() -> str:
     return """Evaluate markdown report formatting and structure:
 
-    1. Required Sections Present:
-       - Title section (# header)
-       - Summary section (## Summary)
-       - Full Report section (## Full Report or similar)
-       - Politician Statements section (if applicable)
-    
+    1. Required Structure:
+       - ALL CAPS topic header (## TOPIC NAME)
+       - Bold item headers (**headline**)
+       - City/source line under each header
+       - Description paragraph (2-3 sentences) for each item
+
     2. Markdown Syntax Correctness:
-       - Proper header hierarchy (H1 > H2 > H3)
-       - Correct bullet point syntax (- or *)
+       - Proper ## headers for topic sections
+       - Bold **text** for item headlines
        - No broken markdown or rendering issues
        - Consistent formatting throughout
-    
+
     3. Content Organization:
-       - Logical flow from summary to details
-       - Clear separation between sections
-       - Easy navigation for readers
-    
+       - Items grouped under topic headers
+       - Clear separation between items
+       - Each item has header, source, and description
+
     4. Professional Quality:
        - Appropriate length for content
        - Readable formatting (not too dense/sparse)
        - Consistent styling choices
 
     Score Guidelines:
-    - 1.0: Perfect structure, all sections present, clean markdown
-    - 0.85: Minor formatting issues, all sections present
-    - 0.7: Most sections present, some formatting problems
-    - 0.5: Missing major sections, noticeable formatting issues
+    - 1.0: Perfect structure, topic headers, bold item headers, descriptions present
+    - 0.85: Minor formatting issues, all structure present
+    - 0.7: Most structure present, some formatting problems
+    - 0.5: Missing topic headers or item structure
     - 0.25: Major structural problems
     - 0.0: Not a valid report or completely unstructured"""
 
@@ -64,10 +64,8 @@ class SectionPresenceMetric(GEval):
         threshold: float = 1.0,
     ):
         self.required_sections = required_sections or [
-            "# Title",
-            "## Summary",
-            "## Full Report",
-            "## Politician",
+            "## TOPIC HEADER",
+            "**Item Header**",
         ]
         super().__init__(
             name="Section Presence",

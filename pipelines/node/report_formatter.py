@@ -3,38 +3,27 @@ from langchain_core.runnables import RunnableLambda
 from utils.schemas import ChainData
 
 
-def _safe_text(value: object, fallback: str) -> str:
-    if isinstance(value, str):
-        text = value.strip()
-        return text or fallback
-    return fallback
-
-
 def report_formatter(inputs: ChainData) -> ChainData:
+    """Format legislation items into topic-organized markdown."""
     legislation_summary = inputs.get("legislation_summary")
+    topic = inputs.get("topic", "General")
+    city = inputs.get("city", "")
 
     if legislation_summary is None:
         return {
             **inputs,
-            "markdown_report": "# No Legislation Found\n\nNo recent legislation was found for the specified city. Try a different city or check back later for updates.",
+            "markdown_report": "",
         }
 
-    title = _safe_text(legislation_summary.title, "Untitled Report")
-    summary = _safe_text(legislation_summary.summary, "No summary available.")
-    body = _safe_text(legislation_summary.body, "No detailed report available.")
+    lines = [f"## {topic.upper()}", ""]
 
-    lines = [
-        f"# {title}",
-        "",
-        "## Summary",
-        "",
-        summary,
-        "",
-        "## Full Report",
-        "",
-        body,
-        "",
-    ]
+    for item in legislation_summary.items:
+        lines.append(f"**{item.header}**")
+        if city:
+            lines.append(city)
+        lines.append("")
+        lines.append(item.description)
+        lines.append("")
 
     raw_sources = inputs.get("legislation_sources") or []
     source_urls = [
