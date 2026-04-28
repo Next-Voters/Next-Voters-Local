@@ -1,12 +1,11 @@
-"""Query-aware context compression via Microsoft's LongLLMLingua.
+"""Context compression via Microsoft's LLMLingua.
 
-Thin wrapper around ``llmlingua.PromptCompressor`` running the LongLLMLingua
+Thin wrapper around ``llmlingua.PromptCompressor`` running the base LLMLingua
 ranking algorithm locally with a small causal LM (``Qwen/Qwen2.5-0.5B``).
 
-Segments are ranked by question-aware perplexity and reordered so the most
-relevant content lands at the first and last positions — a mitigation for the
-long-context "lost in the middle" effect. Model weights (~1 GB) download once
-on first invocation and stay resident for the life of the process.
+Segments are ranked by perplexity and the least informative ones are dropped
+until the retention rate is met. Model weights (~1 GB) download once on first
+invocation and stay resident for the life of the process.
 """
 
 import logging
@@ -18,9 +17,6 @@ from config.constants import COMPRESSION_RATE, MIN_CHARS_TO_COMPRESS
 
 logger = logging.getLogger(__name__)
 
-# Small causal LM used for segment scoring. 0.5B params keeps CPU-only runs
-# tractable; the LongLLMLingua algorithm is scorer-agnostic, so model choice
-# trades ranking accuracy against weight/memory.
 _SCORER_MODEL = "Qwen/Qwen2.5-0.5B"
 
 _compressor: Optional[PromptCompressor] = None
@@ -43,14 +39,13 @@ def compress_text(
     rate: float = COMPRESSION_RATE,
     query: Optional[str] = None,
 ) -> str:
-    """Compress *text* to retain the most relevant content given *query*.
+    """Compress *text* to retain the most informative content.
 
     Args:
         text: Raw content to compress.
         rate: Target retention rate (``0.0`` = drop everything, ``1.0`` = keep all).
-        query: Optional topic/question. When provided, segments are ranked by
-            question-aware perplexity. When ``None``, falls back to
-            unconditional ranking.
+        query: Optional topic/question. Currently unused (reserved for future
+            query-aware ranking).
 
     Returns:
         The compressed prompt. On any compressor failure, falls back to a head
@@ -63,24 +58,21 @@ def compress_text(
     try:
         result = _get_compressor().compress_prompt(
             [text],
-            question=query or "",
             rate=rate,
-            rank_method="longllmlingua",
-            reorder_context="sort",
+            rank_method="llmlingua",
         )
         compressed = result.get("compressed_prompt", text)
     except Exception as exc:
         logger.warning(
-            "LongLLMLingua failed (%s); falling back to head truncation.", exc
+            "LLMLingua failed (%s); falling back to head truncation.", exc
         )
         target_chars = max(MIN_CHARS_TO_COMPRESS, int(len(text) * rate))
         return text[:target_chars]
 
     logger.info(
-        "LongLLMLingua: %d → %d chars (%.0f%% retained, query=%r)",
+        "LLMLingua: %d → %d chars (%.0f%% retained)",
         len(text),
         len(compressed),
         100 * len(compressed) / max(len(text), 1),
-        query,
     )
     return compressed
