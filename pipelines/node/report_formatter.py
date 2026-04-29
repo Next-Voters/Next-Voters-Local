@@ -19,8 +19,6 @@ def report_formatter(inputs: ChainData) -> ChainData:
 
     for item in legislation_summary.items:
         lines.append(f"**{item.header}**")
-        if city:
-            lines.append(city)
         lines.append("")
         lines.append(item.description)
         lines.append("")
