@@ -25,7 +25,7 @@ warnings.filterwarnings(
 
 from utils.supabase_client import get_supported_cities_from_db, get_supported_topics
 from utils.report import cache as report_cache
-from utils.report.storage import upload_all as upload_reports_to_storage
+from utils.report.storage import save_all as save_reports_to_db
 from pipelines.nv_local import run_pipeline
 from pipelines.node.email_dispatcher import dispatch_emails_to_subscribers
 
@@ -159,18 +159,20 @@ def main() -> int:
     if not quiet:
         print(report)
 
-    # Upload reports and dispatch emails using cached reports
+    # Save reports to database
+    try:
+        logger.info("Saving reports to database...")
+        save_reports_to_db(results)
+    except Exception as e:
+        logger.error(f"Failed to save reports to database: {e}")
+
+    # Dispatch emails using cached reports
     try:
         all_reports = report_cache.get_all()
-
-        logger.info("Uploading HTML reports to Supabase Storage...")
-        upload_reports_to_storage(all_reports)
-
         logger.info("Dispatching emails to subscribers...")
         dispatch_emails_to_subscribers(all_reports)
     except Exception as e:
-        logger.error(f"Failed to upload/dispatch emails: {e}")
-        logger.info("Continuing despite email dispatch failure")
+        logger.error(f"Failed to dispatch emails: {e}")
 
     errors = {
         f"{city} ({topic})": result.get("error")

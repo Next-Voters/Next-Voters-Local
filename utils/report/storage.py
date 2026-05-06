@@ -1,62 +1,117 @@
-"""Upload HTML reports to Supabase Storage."""
+"""Save pipeline reports to the Supabase reports table."""
 
-import re
 import logging
 from datetime import date
+from typing import Any
 
 from utils.supabase_client import get_supabase_client
-from utils.email.templates import convert_markdown_to_html, render_template
 
 logger = logging.getLogger(__name__)
 
-BUCKET = "reports"
+# Module-level cache: topic_name -> topic_id
+_topic_ids: dict[str, int] = {}
 
 
-def _slugify(text: str) -> str:
-    """Convert text to a URL-safe slug for storage paths."""
-    s = text.lower().strip()
-    s = re.sub(r"[^\w\s-]", "", s)
-    s = re.sub(r"[\s_]+", "-", s)
-    return s.strip("-")
+def _get_topic_id(topic_name: str) -> int | None:
+    """Resolve a topic name to its integer ID, caching the result."""
+    if topic_name in _topic_ids:
+        return _topic_ids[topic_name]
 
-
-def _render(md: str, city: str = "") -> str:
-    """Convert markdown to full branded HTML."""
-    return render_template(convert_markdown_to_html(md), city=city)
-
-
-def upload_report(city: str, topic: str, html: str) -> str | None:
-    """Upload a single HTML report. Returns the storage path or None on failure."""
-    path = f"{_slugify(city)}/{_slugify(topic)}/en/{date.today().isoformat()}.html"
     try:
         client = get_supabase_client()
-        client.storage.from_(BUCKET).upload(
-            path=path,
-            file=html.encode("utf-8"),
-            file_options={"content-type": "text/html", "upsert": "true"},
+        response = (
+            client.table("supported_topics")
+            .select("topic_id")
+            .eq("topic_name", topic_name)
+            .limit(1)
+            .execute()
         )
-        logger.info(f"Uploaded {BUCKET}/{path}")
-        return path
+        if response.data:
+            tid = response.data[0]["topic_id"]
+            _topic_ids[topic_name] = tid
+            return tid
+        logger.warning(f"No topic_id found for topic: {topic_name}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to upload {path}: {e}")
+        logger.error(f"Failed to resolve topic_id for {topic_name}: {e}")
         return None
 
 
-def upload_all(reports: dict[str, dict[str, str]]) -> int:
-    """Upload all reports as HTML to Supabase Storage.
+def save_report(
+    city: str,
+    topic_name: str,
+    items: list[dict[str, str]],
+    sources: list[str],
+) -> bool:
+    """Upsert a single report into the reports table.
 
     Args:
-        reports: {city: {topic: markdown}}.
+        city: City name (FK to supported_cities).
+        topic_name: Topic name string (resolved to topic_id).
+        items: List of legislation item dicts, each {"header": ..., "description": ...}.
+        sources: List of source URL strings.
 
     Returns:
-        Number of successfully uploaded files.
+        True on success, False on failure.
     """
-    uploaded = 0
+    topic_id = _get_topic_id(topic_name)
+    if topic_id is None:
+        return False
 
-    for city, topics in reports.items():
-        for topic, md in topics.items():
-            if md and upload_report(city, topic, _render(md, city)):
-                uploaded += 1
+    try:
+        client = get_supabase_client()
+        client.table("reports").upsert(
+            {
+                "city": city,
+                "topic_id": topic_id,
+                "report_date": date.today().isoformat(),
+                "items": items,
+                "sources": sources,
+            },
+            on_conflict="city,topic_id,report_date",
+        ).execute()
+        logger.info(f"Saved report: {city}/{topic_name}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save report {city}/{topic_name}: {e}")
+        return False
 
-    logger.info(f"Storage upload complete: {uploaded} files uploaded")
-    return uploaded
+
+def save_all(results: dict[tuple[str, str], dict[str, Any]]) -> int:
+    """Save all pipeline results to the reports table.
+
+    Args:
+        results: Pipeline results keyed by (city, topic) tuple.
+                 Each value should contain 'legislation_summary' (WriterOutput)
+                 and 'legislation_sources' (list of URLs or dicts).
+
+    Returns:
+        Number of successfully saved reports.
+    """
+    saved = 0
+
+    for (city, topic), result in results.items():
+        if result.get("error"):
+            continue
+
+        summary = result.get("legislation_summary")
+        if summary is None:
+            continue
+
+        items = [
+            {"header": item.header, "description": item.description}
+            for item in summary.items
+        ]
+
+        raw_sources = result.get("legislation_sources") or []
+        sources = [
+            s["url"] if isinstance(s, dict) else s
+            for s in raw_sources
+            if s
+        ]
+
+        if save_report(city, topic, items, sources):
+            saved += 1
+
+    logger.info(f"Saved {saved} reports to database")
+    return saved

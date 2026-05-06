@@ -92,7 +92,7 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
   - `pydantic.py`: Structured output schemas (e.g., `WriterOutput`)
 - `report/`: Report lifecycle utilities
   - `cache.py`: Module-level in-memory cache for city+topic pipeline reports. Reports are stored via `store(city, topic, report)` keyed as `{city: {topic: report}}`. The module itself acts as a singleton — import `from utils.report import cache as report_cache` from anywhere.
-  - `storage.py`: Uploads HTML reports to Supabase Storage with branded template rendering
+  - `storage.py`: Saves structured report data (legislation items + source URLs) to the Supabase `reports` table via upsert
 - `content/`: Content processing and evaluation utilities
   - `compressor.py`: Context compression via `compress_text(text, rate, query)`. Retains the first `rate * len(text)` characters (head truncation). The `query` parameter is reserved for future query-aware pruning. Short content (<`MIN_CHARS_TO_COMPRESS` chars) bypasses compression.
   - `pdf_extractor.py`: PDF detection (HEAD request + suffix check) and PDF-to-Markdown conversion via pymupdf4llm.
@@ -115,7 +115,7 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 3. **Note Taker**: LLM summarizes all blocks into dense notes
 4. **Summary Writer**: LLM extracts structured data (title, category, impact, etc.) → `WriterOutput`
 5. **Report Formatter**: Combines all outputs into markdown for display/email
-6. **Post-pipeline** (container runner only): Reports are uploaded to Supabase Storage, then dispatched to each subscriber filtered by their topic preferences
+6. **Post-pipeline** (container runner only): Structured report data (items + sources) is saved to the `reports` database table, then dispatched to each subscriber filtered by their topic preferences
 
 ### Key Design Decisions
 
