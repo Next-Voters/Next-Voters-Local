@@ -3,6 +3,14 @@ name: Push Docker Image to ECR
 on:
   push:
     branches: [main]
+    paths:
+      - "agents/**"
+      - "config/**"
+      - "pipelines/**"
+      - "utils/**"
+      - "main.py"
+      - "requirements.txt"
+      - "docker/**"
   workflow_dispatch:
 
 jobs:
