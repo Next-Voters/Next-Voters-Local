@@ -26,7 +26,7 @@ pip install -r requirements.txt
 - Copy `.env.example` to `.env` and set required keys
 - All entrypoints and modules that read env vars call `load_dotenv()` from `python-dotenv`, so `.env` is loaded automatically
 - **CLI entrypoint**: `main.py` → `pipelines/nv_local.py` (single-city, requires city argument validated against Supabase `supported_cities`)
-- **Docker/Azure entrypoint**: `runners/run_container_job.py` (multi-city concurrent ingestion, must not be modified for CLI changes)
+- **Container entrypoint**: `main.py` with `NV_CITY` env var set (single-city, runs all topics, saves to Supabase `reports` table)
 
 ### Common Commands
 
@@ -45,6 +45,9 @@ python main.py <city_name> -o report.md
 
 # Suppress stdout report
 python main.py <city_name> -q
+
+# Container mode (runs all topics for a city, saves to DB)
+NV_CITY=<city_name> python main.py
 ```
 
 **Post-implementation verification**: After any code changes, always run `python -m compileall -q .` followed by `python main.py <city_name>` to confirm both compile-time and runtime correctness.
@@ -66,9 +69,16 @@ legislation_finder → content_retrieval → note_taker → summary_writer
   → report_formatter
 ```
 
-Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline batch operation in the container runner after all (city, topic) pipelines complete. Reports are cached via `report_cache`, then dispatched to subscribers filtered by their topic preferences.
-
 **Key design**: Each node is a thin `RunnableSequence` that transforms pipeline state (`ChainData` TypedDict).
+
+### Deployment Model (AWS)
+
+Each city runs as an independent **ECS Fargate task**:
+- **EventBridge Scheduler** triggers weekly
+- **Dispatcher Lambda** fans out — one ECS task per city
+- Each Fargate task runs `main.py` with `NV_CITY` env var, executing all topics sequentially
+- Reports written to **Supabase Postgres** `reports` table
+- **Email Lambda** (separate) reads reports and dispatches via **Amazon SES**
 
 ### Core Components
 
@@ -82,27 +92,23 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 - `note_taker.py`: Compresses raw content into dense notes (single LLM call)
 - `summary_writer.py`: Structured extraction of key legislative details (schema: `WriterOutput`)
 - `report_formatter.py`: Builds final markdown document
-- `email_dispatcher.py`: Post-pipeline batch email delivery — queries subscribers' topic preferences, builds per-subscriber content from matching topics, sends in waves of 100 with rate limiting
-- `email_sender.py`: Legacy per-pipeline email node (uses shared `SMTPConnectionPool` from `utils/email.py`)
 
 **Utilities** (`utils/`):
 - `llm/`: LLM factory (`get_llm()`, `get_structured_llm()`) with default config (gpt-5, temp=0, max_tokens=16384)
 - `schemas/`:
   - `state.py`: `ChainData` TypedDict (pipeline state contract)
   - `pydantic.py`: Structured output schemas (e.g., `WriterOutput`)
-- `report/`: Report lifecycle utilities
-  - `cache.py`: Module-level in-memory cache for city+topic pipeline reports. Reports are stored via `store(city, topic, report)` keyed as `{city: {topic: report}}`. The module itself acts as a singleton — import `from utils.report import cache as report_cache` from anywhere.
-  - `storage.py`: Saves structured report data (legislation items + source URLs) to the Supabase `reports` table via upsert
+- `report/`:
+  - `storage.py`: Saves structured report data (legislation items as JSONB) to the Supabase `reports` table via upsert. Single function: `save_report(city, topic_name, result)`
 - `content/`: Content processing and evaluation utilities
   - `compressor.py`: Context compression via `compress_text(text, rate, query)`. Retains the first `rate * len(text)` characters (head truncation). The `query` parameter is reserved for future query-aware pruning. Short content (<`MIN_CHARS_TO_COMPRESS` chars) bypasses compression.
   - `pdf_extractor.py`: PDF detection (HEAD request + suffix check) and PDF-to-Markdown conversion via pymupdf4llm.
   - `source_reliability.py`: Domain-level source reliability scoring and filtering — classifies URLs into government, legislative, news, other, or blocked tiers.
-- `email.py`: Consolidated email utilities — `SMTPConnectionPool` (thread-safe, context manager, NOOP health checks for stale connections), `is_email_configured()`, `load_template()`, `convert_markdown_to_html()`, `render_template()`, `create_mime_message()`, `send_single_email()`. Single source of truth for all SMTP and email rendering logic.
-- `tools/`: Agent tool adapters with LangChain `@tool` decorators, re-exported via `__init__.py` (e.g., `reflection.py`, `web_search.py`). Also contains service module `tavily.py` and a `utils/` subdirectory for helpers (`extract.py`). Google Calendar integration uses a remote MCP server (`https://gcal.mintmcp.com/mcp`) loaded via `langchain-mcp-adapters` in `agents/legislation_finder.py`.
-- `supabase_client.py`: Loads supported cities and topics from Supabase, manages subscriptions with topic preferences via the `subscription_topics` junction table
+- `tools/`: Agent tool adapters with LangChain `@tool` decorators, re-exported via `__init__.py` (e.g., `reflection.py`, `web_search.py`). Contains a `utils/` subdirectory for service modules (`tavily.py`, `extract.py`). Google Calendar integration uses a remote MCP server (`https://gcal.mintmcp.com/mcp`) loaded via `langchain-mcp-adapters` in `agents/legislation_finder.py`.
+- `supabase_client.py`: Loads supported cities and topics from Supabase
 
 **Templates** (`templates/`):
-- `email_report.html`: Branded HTML email template with `{{CONTENT}}` placeholder, responsive design, dark theme with red accent (#E63946), `{{UNSUBSCRIBE_URL}}` footer link
+- `template_legacy.html`: Legacy HTML email template (retained for reference, pending removal)
 
 **Configuration** (`config/`):
 - `system_prompts/`: Prompt templates for agents and nodes
@@ -114,8 +120,8 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 2. **Content Retrieval**: Fetches each URL's text via Tavily Extract (with `markdown.new` as fallback); each block is then compressed via `utils/content/compressor.py` → list of compressed text blocks
 3. **Note Taker**: LLM summarizes all blocks into dense notes
 4. **Summary Writer**: LLM extracts structured data (title, category, impact, etc.) → `WriterOutput`
-5. **Report Formatter**: Combines all outputs into markdown for display/email
-6. **Post-pipeline** (container runner only): Structured report data (items + sources) is saved to the `reports` database table, then dispatched to each subscriber filtered by their topic preferences
+5. **Report Formatter**: Combines all outputs into markdown for display
+6. **Report Storage** (container mode): Structured items upserted to Supabase `reports` table
 
 ### Key Design Decisions
 
@@ -142,39 +148,20 @@ Email dispatch is **decoupled from the pipeline** — it runs as a post-pipeline
 - Short content (<`MIN_CHARS_TO_COMPRESS=1_000` chars) bypasses compression entirely
 
 **Direct SDK calls for external services**
-- Tavily search functions live in `utils/tools/tavily.py` as direct SDK calls; tool adapters in `utils/tools/` wrap them for LangGraph
+- Tavily search functions live in `utils/tools/utils/tavily.py` as direct SDK calls; tool adapters in `utils/tools/` wrap them for LangGraph
 - Google Calendar uses a remote MCP server (`https://gcal.mintmcp.com/mcp`); `create_event` tool is loaded via `langchain-mcp-adapters` at agent build time in `agents/legislation_finder.py`
 - Tool adapters live in `utils/tools/` with re-exports via `__init__.py`; agents import them rather than defining tools inline
 
 **Rate limiting: bounded agent iterations**
-- Pipeline nodes pass `AGENT_RECURSION_LIMIT=25` (from `config/constants.py`) at `ainvoke()` time via the `config` dict, preventing unbounded tool call loops that caused 429 Too Many Requests errors in multi-city runs
+- Pipeline nodes pass `AGENT_RECURSION_LIMIT=40` (from `config/constants.py`) at `ainvoke()` time via the `config` dict, preventing unbounded tool call loops that caused 429 Too Many Requests errors
 - System prompts include explicit "Exit Criteria" sections with measurable stopping conditions
 - Together these reduce LLM request volume ~40% while maintaining research quality
 
-**In-memory report cache (`utils/report/cache.py`)**
-- Module-level nested dict cache keyed by `{city: {topic: report}}`
-- Reports are cached incrementally via `report_cache.store(city, topic, report)` as each pipeline thread completes
-- The email dispatcher receives reports via `report_cache.get_all()`, which returns a deep copy (`dict[str, dict[str, str]]`)
-- Any component can access cached reports by importing the module: `from utils import report_cache`
-- Empty/falsy reports are silently skipped by `store()`, matching the previous filtering behavior
-- Cache is cleared between runs via `clear()` or `build_from_results()`
-
-**Decoupled email dispatch with topic filtering**
-- Email sending was removed from the pipeline chain; it now runs as a post-pipeline batch operation in `runners/run_container_job.py`
-- After all (city, topic) pipelines complete, `report_cache.get_all()` provides all reports, which are dispatched via `email_dispatcher.dispatch_emails_to_subscribers()`
-- Each subscriber receives only reports matching their topic preferences (queried from `subscription_topics` junction table in Supabase)
-- Emails are sent in waves of 100 with 1-second delays to avoid SMTP rate limiting
-
-**Thread-safe SMTP connection pool (`utils/email.py`)**
-- `SMTPConnectionPool` manages a `queue.Queue` of reusable SMTP connections with configurable pool size (default 10)
-- `get_connection()` validates connections with SMTP NOOP before returning; stale/dead connections are discarded and replaced
-- Supports context manager protocol (`with pool:`) for automatic cleanup
-- `close_all()` uses a direct `get_nowait()` loop (fixed TOCTOU race from earlier `while not empty()` pattern)
-- All email sending code imports from `utils/email.py` as the single source of truth
-
-**Concurrency model**
-- `runners/run_container_job.py` uses `ThreadPoolExecutor` for multi-city, multi-topic runs
-- One (city, topic) pair per thread; no shared state between pipeline instances (safe for concurrent execution)
+**Single-city Fargate tasks**
+- Each ECS Fargate task runs ONE city (all topics sequentially)
+- `NV_CITY` env var is validated against `supported_cities` before any API calls
+- Each topic result is saved to DB immediately after pipeline completion
+- If any topic fails (pipeline error or DB save failure), the task exits 1
 
 ## LLM Configuration
 
@@ -182,7 +169,7 @@ Default config in `utils/llm/config.py`:
 - **Model**: `gpt-5`
 - **Temperature**: 0.0 (deterministic)
 - **Max tokens**: 16384
-- **Timeout**: 60s
+- **Timeout**: 120s
 
 Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(schema)`, or `get_structured_mini_llm(schema)` to instantiate. All pull from env var `OPENAI_API_KEY`.
 
@@ -191,13 +178,12 @@ Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(
 **Core** (required):
 - `OPENAI_API_KEY`: OpenAI API access
 - `TAVILY_API_KEY`: Tavily Search + Extract (web search and content retrieval)
+- `SUPABASE_URL`, `SUPABASE_KEY`: City/topic config + report storage
+- `TOGETHER_API_KEY`: Dynamic self-information scoring for context compression
+- `GLAMA_API_KEY`: MCP for Google Calendar event creation
 
-**Optional**:
-- `SUPABASE_URL`, `SUPABASE_KEY`: Load supported cities + email subscribers
-- `SMTP_EMAIL`, `SMTP_APP_PASSWORD`: Send reports via SMTP (defaults: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`)
-
-**External APIs** (no env needed, service-to-service):
-- OpenStreetMap Nominatim (country detection)
+**Container-specific**:
+- `NV_CITY`: City to run pipeline for (set by Dispatcher Lambda)
 
 ## Common Patterns
 
@@ -212,14 +198,13 @@ Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(
 **Agents**
 - Inherit from `BaseReActAgent` (see `agents/base_agent_template.py`)
 - Tools are defined in `utils/tools/` and re-exported via `utils/tools/__init__.py`; agents import them (e.g., `from utils.tools import web_search`)
-- Each tool adapter calls service functions from `utils/tools/tavily.py` and returns a LangGraph `Command` for state updates
+- Each tool adapter calls service functions from `utils/tools/utils/tavily.py` and returns a LangGraph `Command` for state updates
 - Agent builds a LangGraph StateGraph with `call_model` and `tool_node` nodes; `recursion_limit` is applied at invoke-time via the config dict (not at compile-time)
 
 **Error Handling**
 - Classifier output parse failures → reject all sources (safe fallback)
-- Missing email env vars → skip email dispatch (silent skip, not error)
-- Per-city failures in multi-city runs are captured and logged; pipeline continues for other cities
-- SMTP connection failures are handled by the pool — stale connections replaced, delivery failures tracked in `utils/email_failures.json`
+- Per-topic failures are logged; container continues remaining topics then exits 1
+- `save_report()` returning False is treated as a failure (exit 1)
 
 ## Code Conventions
 
@@ -235,21 +220,20 @@ Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(
 **Docker**:
 ```bash
 docker build -f docker/Dockerfile -t nv-local .
-docker run -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... nv-local
+docker run -e NV_CITY=toronto -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... -e SUPABASE_URL=... -e SUPABASE_KEY=... -e TOGETHER_API_KEY=... -e GLAMA_API_KEY=... nv-local
 ```
 
-**Azure (CI/CD)**:
-- GitHub Actions workflow: `/.github/workflows/push-container-to-azure.yml`
-- Trigger: commit message is exactly "release" or manual `workflow_dispatch`
-- Output: image tagged with git SHA + "latest" pushed to Azure Container Registry
-- Runtime: Azure Container Apps Job with scheduler
+**AWS (ECS Fargate)**:
+- EventBridge Scheduler triggers Dispatcher Lambda weekly
+- Dispatcher Lambda launches one Fargate task per supported city
+- Each task runs `main.py` with `NV_CITY` set, executing all topics and saving to Supabase
+- Email Lambda reads from `reports` table and sends via SES
 
-**Logs**: Emitted to stdout/stderr; collected by Azure Monitor in production.
+**Logs**: Emitted to stdout/stderr; collected by CloudWatch in production.
 
 ## Important Known Issues / WIP
 
 - Tavily Extract can fail on some domains (access restrictions, JS-heavy SPAs); `markdown.new` fallback handles most of these but is not 100% reliable
-- No persistent report storage by default (pipeline is stateless)
 
 ## Common Development Tasks
 
@@ -262,7 +246,7 @@ docker run -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... nv-local
 
 **Adding an agent tool**:
 1. Create the tool adapter function in `utils/tools/` with the LangChain `@tool` decorator, then re-export it from `utils/tools/__init__.py`
-2. If the tool needs an external service, add the business logic as a plain function in the appropriate service module (e.g., `utils/tools/tavily.py`) or create a new one; shared helpers go in `utils/tools/utils/`
+2. If the tool needs an external service, add the business logic as a plain function in the appropriate service module (e.g., `utils/tools/utils/tavily.py`) or create a new one
 3. Import the tool in the agent file (e.g., `from utils.tools import web_search`) and pass it to the agent constructor; it is automatically included in `ToolNode`
 
 **Changing LLM model or config**:
@@ -272,5 +256,5 @@ docker run -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... nv-local
 **Debugging a city pipeline failure**:
 1. Run single city: `python main.py <city_name>` (no -q flag to see output)
 2. Check error message in stdout/stderr
-3. Likely causes: missing env vars (`OPENAI_API_KEY`, `TAVILY_API_KEY`), Tavily Extract failure on a domain, agent hitting `recursion_limit=25` before completing, SMTP pool exhaustion (check `utils/email_failures.json`)
-4. Look at per-city result dict in `runners/run_container_job.py:main()` for error field
+3. Likely causes: missing env vars (`OPENAI_API_KEY`, `TAVILY_API_KEY`), Tavily Extract failure on a domain, agent hitting `recursion_limit=40` before completing
+4. Container mode: check ECS task logs in CloudWatch, verify `NV_CITY` is in `supported_cities` table

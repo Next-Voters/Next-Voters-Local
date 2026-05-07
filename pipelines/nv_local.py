@@ -8,7 +8,6 @@ from typing import Any
 
 from utils.supabase_client import get_supported_cities_from_db, get_supported_topics
 from pipelines.node.content_retrieval import content_retrieval_chain
-from pipelines.node.email_sender import email_sender_chain
 from pipelines.node.legislation_finder import legislation_finder_chain
 from pipelines.node.note_taker import note_taker_chain
 from pipelines.node.report_formatter import report_formatter_chain

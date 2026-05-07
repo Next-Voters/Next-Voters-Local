@@ -37,23 +37,30 @@ def _get_topic_id(topic_name: str) -> int | None:
         return None
 
 
-def save_report(
-    city: str,
-    topic_name: str,
-    items: list[dict[str, str]],
-    sources: list[str],
-) -> bool:
-    """Upsert a single report into the reports table.
+def save_report(city: str, topic_name: str, result: dict[str, Any]) -> bool:
+    """Extract structured items from a pipeline result and upsert to the reports table.
 
     Args:
         city: City name (FK to supported_cities).
         topic_name: Topic name string (resolved to topic_id).
-        items: List of legislation item dicts, each {"header": ..., "description": ...}.
-        sources: List of source URL strings.
+        result: Pipeline result dict containing 'legislation_summary' (WriterOutput).
 
     Returns:
         True on success, False on failure.
     """
+    summary = result.get("legislation_summary")
+    if summary is None:
+        return False
+
+    items = [
+        {"header": item.header, "description": item.description}
+        for item in summary.items
+    ]
+
+    if not items:
+        logger.warning(f"No items to save for {city}/{topic_name}, skipping upsert")
+        return False
+
     topic_id = _get_topic_id(topic_name)
     if topic_id is None:
         return False
@@ -66,7 +73,6 @@ def save_report(
                 "topic_id": topic_id,
                 "report_date": date.today().isoformat(),
                 "items": items,
-                "sources": sources,
             },
             on_conflict="city,topic_id,report_date",
         ).execute()
@@ -75,43 +81,3 @@ def save_report(
     except Exception as e:
         logger.error(f"Failed to save report {city}/{topic_name}: {e}")
         return False
-
-
-def save_all(results: dict[tuple[str, str], dict[str, Any]]) -> int:
-    """Save all pipeline results to the reports table.
-
-    Args:
-        results: Pipeline results keyed by (city, topic) tuple.
-                 Each value should contain 'legislation_summary' (WriterOutput)
-                 and 'legislation_sources' (list of URLs or dicts).
-
-    Returns:
-        Number of successfully saved reports.
-    """
-    saved = 0
-
-    for (city, topic), result in results.items():
-        if result.get("error"):
-            continue
-
-        summary = result.get("legislation_summary")
-        if summary is None:
-            continue
-
-        items = [
-            {"header": item.header, "description": item.description}
-            for item in summary.items
-        ]
-
-        raw_sources = result.get("legislation_sources") or []
-        sources = [
-            s["url"] if isinstance(s, dict) else s
-            for s in raw_sources
-            if s
-        ]
-
-        if save_report(city, topic, items, sources):
-            saved += 1
-
-    logger.info(f"Saved {saved} reports to database")
-    return saved

@@ -15,4 +15,4 @@ COPY . .
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "runners/run_container_job.py"]
+CMD ["python", "main.py"]

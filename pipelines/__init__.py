@@ -13,7 +13,6 @@ from pipelines.node.content_retrieval import (
 from pipelines.node.note_taker import research_note_taker, note_taker_chain
 from pipelines.node.summary_writer import research_summary_writer, summary_writer_chain
 from pipelines.node.report_formatter import report_formatter, report_formatter_chain
-from pipelines.node.email_sender import email_sender_chain, send_email_to_subscribers
 
 __all__ = [
     "chain",
@@ -23,8 +22,6 @@ __all__ = [
     "research_note_taker",
     "research_summary_writer",
     "report_formatter",
-    "send_email_to_subscribers",
-    "email_sender_chain",
     "legislation_finder_chain",
     "content_retrieval_chain",
     "note_taker_chain",

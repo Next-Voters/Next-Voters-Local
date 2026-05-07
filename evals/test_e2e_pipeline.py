@@ -59,27 +59,6 @@ class TestEndToEndPipeline:
         result = run_pipeline(self.city)
         assert result["city"] == self.city
 
-    @patch("pipelines.nv_local.chain.invoke")
-    def test_pipeline_handles_multiple_cities(self, mock_invoke: MagicMock):
-        """Test runner handles multiple cities and topics."""
-        cities = ["Toronto", "New York City", "San Diego"]
-        topics = ["immigration"]
-        mock_invoke.side_effect = [
-            {"city": city, "topic": topic, "markdown_report": f"# {city} Report"}
-            for city in cities
-            for topic in topics
-        ]
-
-        from runners.run_container_job import run_pipelines_for_cities_and_topics
-
-        results = run_pipelines_for_cities_and_topics(cities, topics)
-
-        assert len(results) == 3
-        for city in cities:
-            for topic in topics:
-                assert (city, topic) in results
-                assert "markdown_report" in results[(city, topic)]
-
 
 class TestPipelineComponents:
     """Test individual pipeline components in integration context."""
@@ -288,49 +267,6 @@ class TestSupportedCities:
         result = run_pipeline(city)
 
         assert result["city"] == city
-
-
-class TestPipelineRendering:
-    """Test pipeline output rendering."""
-
-    @patch("runners.run_container_job.run_pipelines_for_cities_and_topics")
-    def test_render_city_reports(
-        self,
-        mock_run: MagicMock,
-        sample_markdown_report: str,
-    ):
-        """Test rendering multiple city+topic reports."""
-        results = {
-            ("Toronto", "immigration"): {"markdown_report": sample_markdown_report},
-            ("NYC", "immigration"): {"markdown_report": "# NYC Report"},
-        }
-        targets = [("Toronto", "immigration"), ("NYC", "immigration")]
-        mock_run.return_value = results
-
-        from runners.run_container_job import render_pipeline_reports_markdown
-
-        result = render_pipeline_reports_markdown(results, targets)
-
-        assert "## Toronto (immigration)" in result
-        assert "## NYC (immigration)" in result
-
-    @patch("runners.run_container_job.run_pipelines_for_cities_and_topics")
-    def test_render_with_errors(self, mock_run: MagicMock):
-        """Test rendering with pipeline errors."""
-        results = {
-            ("Toronto", "immigration"): {
-                "error": "Test error",
-                "markdown_report": "",
-            },
-        }
-        targets = [("Toronto", "immigration")]
-        mock_run.return_value = results
-
-        from runners.run_container_job import render_pipeline_reports_markdown
-
-        result = render_pipeline_reports_markdown(results, targets)
-
-        assert "**Error:**" in result
 
 
 def run_e2e_evaluation() -> dict[str, Any]:

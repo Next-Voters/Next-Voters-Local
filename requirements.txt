@@ -9,7 +9,6 @@ rich
 pydantic
 requests
 supabase
-markdown
 openai
 tavily-python
 pymupdf4llm
