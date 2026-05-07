@@ -4,86 +4,82 @@ This document describes how NV Local is typically run in development and how it 
 
 ## Environments
 
-- Local dev: run `python main.py` or `python run_cli_main.py` from a virtualenv
-- Container: build and run `docker/Dockerfile`
-- CI/CD: GitHub Actions builds and pushes a container image to Azure Container Registry
+- Local dev: run `python main.py <city>` from a virtualenv
+- Container: build and run `docker/Dockerfile` with `NV_CITY` env var set
+- CI/CD: GitHub Actions builds and pushes a container image to Amazon ECR
 
 ## Configuration And Secrets
 
 Core runtime secrets:
 
-- `OPENAI_API_KEY`
-- `BRAVE_SEARCH_API_KEY`
+- `OPENAI_API_KEY`: OpenAI API access
+- `TAVILY_API_KEY`: Tavily Search + Extract (web search and content retrieval)
+- `SUPABASE_URL`, `SUPABASE_KEY`: City/topic config + report storage
+- `TOGETHER_API_KEY`: Dynamic self-information scoring for context compression
+- `GLAMA_API_KEY`: MCP for Google Calendar event creation
 
-Optional features:
+Container-specific:
 
-- Twitter MCP: `TWITTER_API_KEY`, `TWITTER_BEARER_TOKEN`
-- Email delivery: `SUPABASE_URL`, `SUPABASE_KEY`, `SMTP_EMAIL`, `SMTP_APP_PASSWORD`
+- `NV_CITY`: City to run pipeline for (set by Dispatcher Lambda)
 
 Operational guidance:
 
-- Prefer injecting secrets via your environment (shell export, container env vars, or Azure Key Vault).
-- `run_cli_main.py` calls `dotenv.load_dotenv()`; `main.py` does not.
+- Prefer injecting secrets via your environment (shell export, container env vars, or AWS Secrets Manager).
+- `main.py` calls `dotenv.load_dotenv()`, so a `.env` file is loaded automatically.
 
 ## Deployments
 
 ### Container Image Build + Push
 
-GitHub workflow: `/.github/workflows/push-container-to-azure.yml`
+GitHub workflow: `/.github/workflows/push-image-to-ecr.yml`
 
-- Trigger: pushes to `main`, but the job only runs when either:
-  - the commit message is exactly `release`, or
-  - the workflow is run manually via `workflow_dispatch`
-- Output: image pushed to Azure Container Registry with two tags:
-  - `<login_server>/next-voters-local:<git_sha>`
-  - `<login_server>/next-voters-local:latest`
+- Trigger: pushes to `main`, or manual `workflow_dispatch`
+- Authentication: OIDC via GitHub's `id-token` permission — the workflow assumes an IAM role (`AWS_ROLE_ARN` secret) instead of storing long-lived credentials
+- Output: image pushed to Amazon ECR with two tags:
+  - `<registry>/<repository>:<git_sha>`
+  - `<registry>/<repository>:latest`
 
-### Runtime (Azure)
+Required GitHub configuration:
+- **Secret**: `AWS_ROLE_ARN` — ARN of the IAM role the workflow assumes via OIDC
+- **Variables**: `AWS_REGION`, `ECR_REPOSITORY` — region and ECR repository name
 
-The repo contains an Azure infrastructure diagram in `__diagrams__/azure-infrastructure.mmd`. The intended model is:
+### Runtime (AWS ECS Fargate)
 
-- An Azure Container Apps Job pulls the image from ACR
-- A schedule triggers the job
-- Logs are emitted to stdout/stderr and collected by Azure Monitor / Log Analytics
-
-This repository does not include IaC for provisioning the Azure resources.
+- EventBridge Scheduler triggers a Dispatcher Lambda weekly
+- Dispatcher Lambda launches one ECS Fargate task per supported city
+- Each Fargate task runs `main.py` with `NV_CITY` env var set
+- Reports are saved to the Supabase `reports` table
+- Logs are emitted to stdout/stderr and collected by CloudWatch
 
 ## Logging And Monitoring
 
-- Primary logs: stdout/stderr from the container/job
-- Failures: per-city pipeline failures are captured and surfaced as `error` fields in the multi-city results
-
-If email sending is enabled:
-
-- A JSON file of delivery failures may be written (`email_failures.json`). In ephemeral containers this file is not durable unless you mount storage or ship logs elsewhere.
+- Primary logs: stdout/stderr from the container
+- In production, logs are collected by CloudWatch via ECS Fargate
+- Per-topic pipeline failures are logged to stderr; the container exits 1 if any topic fails
 
 ## Data Storage And Backups
 
-- The core pipeline is stateless; it does not persist reports by default.
-- Email subscriber list is read from Supabase (table: `subscriptions`, column: `contact`). Backups, retention, and schema migrations are owned by the Supabase project.
+- Reports are stored in the Supabase `reports` table (upserted per city/topic).
+- Supported cities and topics are read from Supabase (`supported_cities` and related tables).
+- Backups, retention, and schema migrations are owned by the Supabase project.
 
 ## Runbooks
 
 ### Job Fails Immediately
 
-1) Check logs for missing env vars (common: `OPENAI_API_KEY` or `BRAVE_SEARCH_API_KEY`).
-2) If using `python main.py` locally, confirm your shell exports env vars (it does not auto-load `.env`).
+1) Check logs for missing env vars (common: `OPENAI_API_KEY` or `TAVILY_API_KEY`).
+2) In container mode, verify `NV_CITY` is set and the city exists in the `supported_cities` table.
 
-### Brave Search Errors
+### Tavily Search / Extract Errors
 
-Symptoms: errors mentioning `BRAVE_SEARCH_API_KEY` or failures in the MCP client.
+Symptoms: empty legislation sources or empty content blocks.
 
-1) Verify the key is present in the runtime environment.
-2) Confirm outbound network access to `https://server.smithery.ai/`.
-3) If failures are intermittent, consider retries or reducing concurrency.
+1) Verify `TAVILY_API_KEY` is present in the runtime environment.
+2) Tavily Extract can fail on JS-heavy SPAs or access-restricted domains; the pipeline falls back to `markdown.new` but this is not 100% reliable.
+3) If failures are widespread, check Tavily service status.
 
 ### OpenAI Errors / Rate Limits
 
 1) Verify `OPENAI_API_KEY` and account quota.
-2) If rate-limited, reduce the number of cities run concurrently (edit `data/__init__.py`) or tune model usage.
-
-### Email Not Sending
-
-1) Email delivery is skipped unless all of `SMTP_EMAIL`, `SMTP_APP_PASSWORD`, `SUPABASE_URL`, `SUPABASE_KEY` are set.
-2) Confirm Supabase has rows in `subscriptions` with a non-empty `contact`.
-3) For Gmail SMTP, ensure an app password is used and SMTP access is permitted.
+2) The agent `recursion_limit` (configured in `config/constants.py`) bounds tool-call loops to prevent runaway API usage.
+3) If rate-limited, reduce the number of cities running concurrently by adjusting the Dispatcher Lambda fan-out.
