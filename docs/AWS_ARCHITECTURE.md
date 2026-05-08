@@ -1,6 +1,13 @@
 # AWS System Design
 
-High-level architecture for the City Agent email pipeline. Reports are generated weekly per city, queued via Simple Queue Service, and emailed to subscribers via Simple Email Service.
+This document covers two concerns:
+
+1. **Pipeline Execution** — the runtime flow that generates reports and emails subscribers on a weekly cron.
+2. **CI/CD Infrastructure** — the build and image-management process that maintains the Docker images consumed by the pipeline.
+
+---
+
+## 1. Pipeline Execution
 
 ```mermaid
 flowchart LR
@@ -54,11 +61,10 @@ flowchart LR
     class USERS user
     style VPC fill:#1F3A5F,stroke:#0D1F33,stroke-width:2px,color:#fff
 
-    %% Bold the Internet Gateway Access dotted arrow (link index 2)
     linkStyle 2 stroke-width:3px,stroke:#fff
 ```
 
-## Flow Summary
+### Flow Summary
 
 1. **EventBridge** triggers the **Dispatcher Lambda** on a weekly cron.
 2. **Dispatcher Lambda** reads the active cities from **Supabase** and fans out one **Elastic Container Service Fargate** task per city.
@@ -66,3 +72,58 @@ flowchart LR
 4. **Simple Queue Service** holds the message. AWS-managed pollers invoke the **Email Lambda** with batches of messages. Lambda reserved concurrency caps parallel executions to protect Simple Email Service rate limits.
 5. **Email Lambda** reads the report and bullets from Supabase, queries subscribers for the city, renders the email, sends via **Simple Email Service**, and writes to `send_log` for idempotency.
 6. Failed messages are retried automatically by Simple Queue Service. After N failures, they land in the **Dead Letter Queue** for investigation.
+
+---
+
+## 2. CI/CD Infrastructure
+
+```mermaid
+flowchart LR
+    DEV["Developer<br/>git push"]
+    CI["CI/CD<br/>build + tag image"]
+
+    subgraph ECR["Elastic Container Registry"]
+        R1["next-voters-agent"]
+        R2["lambda-dispatcher-pipelines"]
+        R3["lambda-email-sender"]
+    end
+
+    ECS_T["Elastic Container Service<br/>Fargate task"]
+    DL_T["Dispatcher Lambda"]
+    EML_T["Email Lambda"]
+
+    DEV --> CI
+    CI -->|push image| R1
+    CI -->|push image| R2
+    CI -->|push image| R3
+
+    R1 -.->|image pull on task start| ECS_T
+    R2 -.->|image pull on deploy| DL_T
+    R3 -.->|image pull on deploy| EML_T
+
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef repo fill:#232F3E,stroke:#FF9900,stroke-width:2px,color:#fff
+    classDef ci fill:#7B68EE,stroke:#3F2E8C,stroke-width:2px,color:#fff
+    classDef dev fill:#4A90E2,stroke:#1F3A5F,stroke-width:2px,color:#fff
+
+    class ECS_T,DL_T,EML_T aws
+    class R1,R2,R3 repo
+    class CI ci
+    class DEV dev
+    style ECR fill:#1F3A5F,stroke:#FF9900,stroke-width:2px,color:#fff
+```
+
+### Repositories
+
+| Repository | Consumer | Purpose |
+|---|---|---|
+| `next-voters-agent` | Elastic Container Service Fargate | LangGraph agent that scrapes external sources, calls LLMs, and generates report bullets |
+| `lambda-dispatcher-pipelines` | Dispatcher Lambda | Reads active cities from Supabase and fans out Fargate tasks |
+| `lambda-email-sender` | Email Lambda | Renders email templates and sends via Simple Email Service |
+
+### Deployment Flow
+
+1. Code is pushed to the application repository.
+2. CI builds a Docker image and pushes it to the corresponding Elastic Container Registry repository, tagged with the commit SHA.
+3. Lambda functions are updated to point to the new image tag. Lambda caches the image until the next deploy.
+4. Fargate task definitions reference the desired image tag and pull the image when a new task starts.
