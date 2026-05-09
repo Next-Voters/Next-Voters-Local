@@ -6,6 +6,7 @@ tool) are passed through without re-fetching or re-compressing.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import httpx
 from langchain_core.runnables import RunnableLambda
@@ -16,8 +17,6 @@ from config.constants import (
     CONTENT_MIN_CHARS_PER_URL,
     CONTENT_TOTAL_CHAR_BUDGET,
 )
-from utils.async_runner import run_async
-from utils.concurrency import run_parallel
 from utils.content.compressor import compress_text
 from utils.tools.utils.extract import extract_url_content
 from utils.schemas import ChainData
@@ -79,7 +78,7 @@ def run_content_retrieval(inputs: ChainData) -> ChainData:
     url_to_content: dict[str, str] = {}
     if urls_to_fetch:
         try:
-            url_to_content = run_async(lambda: extract_url_content(urls_to_fetch))
+            url_to_content = extract_url_content(urls_to_fetch)
             logger.info(
                 "Tavily Extract returned content for %d/%d URLs.",
                 len(url_to_content),
@@ -117,12 +116,14 @@ def run_content_retrieval(inputs: ChainData) -> ChainData:
     compress_targets = [u for u in ordered_urls if u in url_to_content and u not in pre_fetched]
     compressed_by_url: dict[str, str] = {}
     if compress_targets:
-        parallel_results = run_parallel(_compress_capped, compress_targets)
-        for res in parallel_results:
-            if res.ok and res.value is not None:
-                compressed_by_url[res.item] = res.value
-            else:
-                logger.warning("Compression failed for %s: %r", res.item, res.error)
+        with ThreadPoolExecutor() as executor:
+            futures = {executor.submit(_compress_capped, url): url for url in compress_targets}
+            for future in as_completed(futures):
+                url = futures[future]
+                try:
+                    compressed_by_url[url] = future.result()
+                except Exception:
+                    logger.warning("Compression failed for %s", url, exc_info=True)
 
     # Assemble final content list in the original source order.
     legislation_content: list[str] = []

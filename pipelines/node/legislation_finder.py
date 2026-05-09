@@ -1,9 +1,9 @@
+import asyncio
 import logging
 
 from langchain_core.runnables import RunnableLambda
 
 from utils.schemas import ChainData
-from utils.async_runner import run_async
 from utils.content.source_reliability import filter_sources
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ def run_legislation_finder(inputs: ChainData) -> ChainData:
 
     from agents.legislation_finder import invoke_legislation_finder
 
-    agent_result = run_async(lambda: invoke_legislation_finder(city))
+    agent_result = asyncio.run(invoke_legislation_finder(city))
 
     # Extract sources collected by web_search tool calls.
     # Sources are either plain URL strings or dicts {"url", "content", "source"} for

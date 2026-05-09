@@ -51,7 +51,7 @@ Code layout (high level):
 
 - Concurrency: `runners/run_container_job.py` uses a `ThreadPoolExecutor` to run one city pipeline per thread (one thread per city; no shared state between cities).
 - State passing: pipeline nodes pass a simple `TypedDict` (`utils/schemas/state.py:ChainData`) from node to node.
-- Async: MCP server communication uses async Python (`asyncio`); `utils/async_runner.py` provides a helper to call async functions from synchronous pipeline nodes.
+- Async: MCP server communication uses async Python (`asyncio`); pipeline nodes call `asyncio.run()` directly to bridge async agent entry points.
 
 ## Key Design Decisions
 

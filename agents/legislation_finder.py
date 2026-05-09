@@ -12,7 +12,7 @@ Tier A2 — supervisor / sub-agent split:
     2. ``_run_per_source_subagent`` — a bounded, stateless validator that
        classifies one URL at a time and produces a ``SourceAssessment``.
     3. ``invoke_legislation_finder`` is the supervisor: it runs discovery,
-       fans out per-source sub-agents through ``run_parallel``, and returns
+       fans out per-source sub-agents through ``ThreadPoolExecutor``, and returns
        both the filtered URL list and the per-source assessments so the
        downstream pipeline can use them without re-running the ReAct loop.
 
@@ -37,7 +37,8 @@ from config.system_prompts import (
     legislation_finder_subagent_sys_prompt,
     legislation_finder_sys_prompt,
 )
-from utils.concurrency import run_parallel
+from concurrent.futures import ThreadPoolExecutor
+
 from utils.llm import get_structured_mini_llm
 from utils.schemas import LegislationFinderState, SourceAssessment
 from utils.sources import extract_url_and_snippet
@@ -111,7 +112,7 @@ def _run_per_source_subagent(city: str, item: str | dict[str, Any]) -> SourceAss
     """
     url, snippet = extract_url_and_snippet(item)
     if not url:
-        return SourceAssessment(url="", accepted=False, rationale="empty url")
+        return SourceAssessment(url="", accepted=False)
 
     llm = get_structured_mini_llm(SourceAssessment)
     user = (
@@ -133,16 +134,13 @@ def _run_per_source_subagent(city: str, item: str | dict[str, Any]) -> SourceAss
             assessment = SourceAssessment(
                 url=url,
                 accepted=False,
-                rationale=f"unexpected result type: {type(result).__name__}",
             )
         if not assessment.url:
             assessment = assessment.model_copy(update={"url": url})
         return assessment
     except Exception as exc:  # noqa: BLE001
         logger.debug("Sub-agent failed for %s: %s", url, exc)
-        return SourceAssessment(
-            url=url, accepted=False, rationale=f"subagent error: {exc}"
-        )
+        return SourceAssessment(url=url, accepted=False)
 
 
 def _dispatch_subagents(
@@ -151,23 +149,10 @@ def _dispatch_subagents(
     """Fan out per-source validators in parallel and collect assessments."""
     if not candidates:
         return []
-    results = run_parallel(
-        lambda item: _run_per_source_subagent(city, item), candidates
-    )
-    assessments: list[SourceAssessment] = []
-    for r in results:
-        if r.ok and r.value is not None:
-            assessments.append(r.value)
-        else:
-            url, _ = extract_url_and_snippet(r.item)
-            assessments.append(
-                SourceAssessment(
-                    url=url,
-                    accepted=False,
-                    rationale=f"dispatch error: {r.error!r}" if r.error else "no value",
-                )
-            )
-    return assessments
+    with ThreadPoolExecutor() as executor:
+        return list(executor.map(
+            lambda item: _run_per_source_subagent(city, item), candidates
+        ))
 
 
 # ---------------------------------------------------------------------------

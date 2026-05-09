@@ -1,16 +1,16 @@
 """Tavily URL content extraction via the tavily-python SDK.
 
-Async function using AsyncTavilyClient. Used by the content_retrieval pipeline node.
+Sync function using TavilyClient. Used by the content_retrieval pipeline node.
 """
 
 from __future__ import annotations
 
 import os
 
-from tavily import AsyncTavilyClient
+from tavily import TavilyClient
 
 
-async def extract_url_content(urls: list[str]) -> dict[str, str]:
+def extract_url_content(urls: list[str]) -> dict[str, str]:
     """Batch-extract page content for URLs using the Tavily SDK.
 
     Tavily API limits extraction to 20 URLs per request.
@@ -33,8 +33,8 @@ async def extract_url_content(urls: list[str]) -> dict[str, str]:
         )
 
     urls_to_extract = urls[:20]
-    client = AsyncTavilyClient(api_key=api_key)
-    response = await client.extract(urls=urls_to_extract, format="markdown")
+    client = TavilyClient(api_key=api_key)
+    response = client.extract(urls=urls_to_extract, format="markdown")
 
     return {
         item["url"]: item["raw_content"]
