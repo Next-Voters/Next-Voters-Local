@@ -4,16 +4,16 @@ Extracts structured legislation items (header + bullets) per topic from
 the research notes and source content.
 """
 
-import logging
 from functools import lru_cache
 
 from langchain_core.runnables import RunnableLambda
 
 from utils.schemas import ChainData, WriterOutput
 from utils.llm import get_structured_llm
+from utils.logger import get_logger
 from config.system_prompts import writer_sys_prompt
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @lru_cache(maxsize=1)

@@ -11,7 +11,6 @@ via ``ReflectionMiddleware``.
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timedelta
 
 from langchain.agents import create_agent
@@ -21,8 +20,6 @@ from tools import web_search, reflection_tool, note_taker, delete_note
 from tools.middleware import ReflectionMiddleware
 from tools.handoff import handoff
 from utils.llm import get_llm
-
-logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Dynamic system prompt

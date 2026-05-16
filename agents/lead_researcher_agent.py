@@ -8,15 +8,11 @@ The lead researcher:
 
 from __future__ import annotations
 
-import logging
-
 from langchain.agents import create_agent
 
 from tools.researcher_agent_tool import researcher_agent_tool
 from utils.llm import get_llm
 from utils.schemas import LeadResearcherOutput, LeadResearcherState
-
-logger = logging.getLogger(__name__)
 
 
 def build_lead_researcher_agent(prompt: str):

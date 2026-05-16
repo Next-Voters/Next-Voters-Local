@@ -1,13 +1,13 @@
 import asyncio
-import logging
 
 from langchain_core.runnables import RunnableLambda
 
 from utils.schemas import ChainData
 from utils.content.source_reliability import filter_sources
+from utils.logger import get_logger
 from utils.supabase_client import get_supported_topics
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def gather_citations(all_sources: list[str | dict]) -> list[str | dict]:

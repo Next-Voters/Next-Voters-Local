@@ -8,7 +8,6 @@ execution, enforced via InjectedState counter.
 
 from __future__ import annotations
 
-import logging
 from typing import Annotated
 
 from langchain_core.messages import HumanMessage, ToolMessage
@@ -20,8 +19,6 @@ from agents.researcher_agent import build_researcher_agent, run_researcher
 from config.constants import AGENT_RECURSION_LIMIT, MAX_RESEARCHER_INVOCATIONS
 from tools._helpers import ok
 from utils.schemas import ResearcherOutput
-
-logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
