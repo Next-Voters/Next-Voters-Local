@@ -78,7 +78,7 @@ Each region runs as an independent **ECS Fargate task**:
 ### Core Components
 
 **Agents** (`agents/`):
-- `researcher_agent.py`: ReAct subagent for issue-level legislation discovery, built with `create_agent` from `langchain.agents`
+- `researcher_agent.py`: ReAct subagent for issue-level legislation discovery, built with `create_agent` from `langchain.agents`. Terminates via `handoff` tool which writes summary to state and exits the graph.
 - `lead_researcher_agent.py`: Supervisor agent that dispatches researchers per issue, validates sources, and synthesizes findings
 
 **Pipeline Nodes** (`pipelines/node/`):
@@ -102,6 +102,7 @@ Each region runs as an independent **ECS Fargate task**:
 - `web_search.py`: Web search tool using Tavily for legislation discovery
 - `reflection.py`: Reflection tool for agent self-evaluation during ReAct loops
 - `notes.py`: `note_taker` (records notes as SystemMessage with slug ID) and `delete_note` (removes via RemoveMessage)
+- `handoff.py`: Researcher's exit tool — writes summary + sources to state and terminates the graph via `goto=END`
 - `researcher_agent_tool.py`: Agent-as-tool wrapper that invokes the researcher subagent in an isolated context window
 - `source_validator.py`: Parallel URL validation using structured mini-LLM calls
 - `middleware.py`: `ReflectionMiddleware` for injecting reflection history before each LLM call
@@ -204,7 +205,7 @@ Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(
 - Each tool adapter calls service functions from `tools/services/tavily.py` and returns a LangGraph `Command` for state updates
 - `ReflectionMiddleware` in `tools/middleware.py` injects reflection history before each LLM call; add it to the `middleware` list when building agents that use `reflection_tool`
 - The agent-as-tool pattern (`tools/researcher_agent_tool.py`) wraps a subagent invocation as a tool, giving it an isolated context window
-- `response_format` on `create_agent` enforces structured output schemas (e.g., `ResearcherOutput`, `LeadResearcherOutput`)
+- `response_format` on `create_agent` enforces structured output schemas (e.g., `LeadResearcherOutput`); the researcher uses a `handoff` tool instead of `response_format` for its exit
 - `recursion_limit` is applied at invoke-time via the config dict; `MAX_RESEARCHER_INVOCATIONS` limits subagent dispatch at the tool level via `InjectedState`
 
 **Error Handling**

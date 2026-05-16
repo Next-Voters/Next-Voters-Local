@@ -2,8 +2,8 @@
 
 Each researcher is scoped to one specific issue within a topic for a city
 (e.g., "rent control vote" within "housing" for "Toronto"). It uses web
-search, reflection, and note-taking tools to investigate, then produces a
-structured ``ResearcherOutput`` as its final response.
+search, reflection, and note-taking tools to investigate, then terminates
+via the ``handoff`` tool which writes findings directly to graph state.
 
 Built with ``create_agent`` from langchain; reflection history is injected
 via ``ReflectionMiddleware``.
@@ -20,8 +20,8 @@ from config.constants import AGENT_RECURSION_LIMIT
 from config.system_prompts import legislation_finder_sys_prompt
 from tools import web_search, reflection_tool, note_taker, delete_note
 from tools.middleware import ReflectionMiddleware
+from tools.handoff import handoff
 from utils.llm import get_llm
-from utils.schemas import ResearcherOutput
 
 logger = logging.getLogger(__name__)
 
@@ -59,46 +59,12 @@ def build_researcher_agent(gcal_tools: list):
         A compiled LangGraph agent graph.
     """
     selected = [t for t in gcal_tools if t.name in _TARGET_GCAL_TOOLS]
-    tools = [reflection_tool, web_search, note_taker, delete_note] + selected
+    tools = [reflection_tool, web_search, note_taker, delete_note, handoff] + selected
 
     return create_agent(
         model=get_llm(),
         tools=tools,
         system_prompt=_researcher_system_prompt,
         middleware=[ReflectionMiddleware()],
-        response_format=ResearcherOutput,
         name="researcher",
     )
-
-
-# ---------------------------------------------------------------------------
-# Runner with graceful recursion-limit exit
-# ---------------------------------------------------------------------------
-
-
-async def run_researcher(graph, invoke_kwargs: dict) -> dict:
-    """Run the researcher graph, tolerating recursion-limit exits gracefully.
-
-    Uses ``astream`` with ``stream_mode="values"`` so we see the full state
-    at each step. If LangGraph aborts with ``GraphRecursionError`` we still
-    return the most recent state snapshot — which contains any URLs the
-    agent had already accepted via web_search tool calls.
-    """
-    from langgraph.errors import GraphRecursionError
-
-    last_state: dict = {}
-    try:
-        async for state in graph.astream(
-            invoke_kwargs["input"],
-            config=invoke_kwargs["config"],
-            stream_mode="values",
-        ):
-            last_state = state or last_state
-    except GraphRecursionError:
-        partial_urls = last_state.get("legislation_sources", []) or []
-        logger.warning(
-            "Researcher hit recursion limit (%d steps); returning %d partial URLs.",
-            invoke_kwargs["config"].get("recursion_limit", AGENT_RECURSION_LIMIT),
-            len(partial_urls),
-        )
-    return last_state

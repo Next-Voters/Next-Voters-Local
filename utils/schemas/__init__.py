@@ -15,7 +15,6 @@ from utils.schemas.state import (
 )
 from utils.schemas.research_output import (
     LeadResearcherOutput,
-    ResearcherOutput,
     TopicFinding,
 )
 
@@ -27,7 +26,6 @@ __all__ = [
     "LegislationFinderState",
     "LegislationItem",
     "ReflectionEntry",
-    "ResearcherOutput",
     "ResearcherState",
     "SourceAssessment",
     "TopicFinding",
