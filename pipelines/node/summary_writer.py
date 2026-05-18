@@ -95,14 +95,21 @@ def research_summary_writer(inputs: ChainData) -> ChainData:
         notes = result.get("notes")
         source_urls = _normalize_source_urls(result.get("legislation_sources"))
         legislation_content = result.get("legislation_content") or []
+        topic_description = result.get("topic_description", "")
 
         findings = result.get("findings")
         user_message = _build_user_message(source_urls, legislation_content, notes or "", findings)
 
+        formatted_prompt = (
+            writer_sys_prompt
+            .replace("{topic}", topic)
+            .replace("{topic_description}", topic_description)
+        )
+
         logger.info("Generating summary for topic: %s", topic)
         ai_generated_summary: WriterOutput = _get_model().invoke(
             [
-                {"role": "system", "content": writer_sys_prompt},
+                {"role": "system", "content": formatted_prompt},
                 {"role": "user", "content": user_message},
             ],
         )

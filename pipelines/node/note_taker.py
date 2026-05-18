@@ -33,11 +33,18 @@ def research_note_taker(inputs: ChainData) -> ChainData:
             continue
 
         raw_content = "\n".join(raw_content_list)
+        topic_description = result.get("topic_description", "")
+
+        formatted_prompt = (
+            note_taker_sys_prompt
+            .replace("{topic}", topic)
+            .replace("{topic_description}", topic_description)
+        )
 
         logger.info("Generating notes for topic: %s", topic)
         ai_generated_notes = _get_model().invoke(
             [
-                {"role": "system", "content": note_taker_sys_prompt},
+                {"role": "system", "content": formatted_prompt},
                 {"role": "user", "content": f"Raw page content to distill:\n\n{raw_content}"},
             ],
         )

@@ -63,6 +63,7 @@ class LegislationFinderState(BaseAgentState):
 class TopicResult(TypedDict):
     """Per-topic pipeline results accumulated across nodes."""
 
+    topic_description: NotRequired[str]
     legislation_sources: NotRequired[list[str | dict]]
     legislation_content: NotRequired[list[str]]
     notes: NotRequired[str]

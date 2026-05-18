@@ -86,6 +86,7 @@ def run_agent_team(inputs: ChainData) -> ChainData:
         )
 
         topic_results[topic] = {
+            "topic_description": topic_description,
             "legislation_sources": legislation_sources,
             "findings": pruned_findings,
             "overview": overview,
