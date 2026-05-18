@@ -5,7 +5,7 @@ This document describes how NV Local is typically run in development and how it 
 ## Environments
 
 - Local dev: run `python main.py <city>` from a virtualenv
-- Container: build and run `docker/Dockerfile` with `NV_CITY` env var set
+- Container: build and run `docker/Dockerfile` with `REGION` env var set
 - CI/CD: GitHub Actions builds and pushes a container image to Amazon ECR
 
 ## Configuration And Secrets
@@ -19,7 +19,7 @@ Core runtime secrets:
 
 Container-specific:
 
-- `NV_CITY`: City to run pipeline for (set by Dispatcher Lambda)
+- `REGION`: City to run pipeline for (set by Dispatcher Lambda)
 - `SQS_QUEUE_URL`: SQS queue URL for report-ready messages (triggers Email Lambda)
 - `SQS_PIPELINE_DLQ_URL`: SQS dead letter queue URL for pipeline failure metadata
 
@@ -48,7 +48,7 @@ Required GitHub configuration:
 
 - EventBridge Scheduler triggers a Dispatcher Lambda weekly
 - Dispatcher Lambda launches one ECS Fargate task per supported city
-- Each Fargate task runs `main.py` with `NV_CITY` env var set
+- Each Fargate task runs `main.py` with `REGION` env var set
 - Reports are saved to the Supabase `reports` table
 - After all topics complete, a `{region, report_id}` message is enqueued to SQS, triggering the Email Lambda
 - If any topic or the SQS enqueue fails, failure metadata is sent to the pipeline DLQ
@@ -71,7 +71,7 @@ Required GitHub configuration:
 ### Job Fails Immediately
 
 1) Check logs for missing env vars (common: `OPENAI_API_KEY` or `TAVILY_API_KEY`).
-2) In container mode, verify `NV_CITY` is set and the region exists in the `regions` table.
+2) In container mode, verify `REGION` is set and the region exists in the `regions` table.
 
 ### Tavily Search / Extract Errors
 

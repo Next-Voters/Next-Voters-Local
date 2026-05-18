@@ -26,7 +26,7 @@ pip install -r requirements.txt
 - Copy `.env.example` to `.env` and set required keys
 - All entrypoints and modules that read env vars call `load_dotenv()` from `python-dotenv`, so `.env` is loaded automatically
 - **CLI entrypoint**: `main.py` → `pipelines/nv_local.py` (single-region, requires region argument validated against Supabase `regions`)
-- **Container entrypoint**: `main.py` with `NV_CITY` env var set (single-region, runs all topics, saves to Supabase `reports` table)
+- **Container entrypoint**: `main.py` with `REGION` env var set (single-region, runs all topics, saves to Supabase `reports` table)
 
 ### Common Commands
 
@@ -41,7 +41,7 @@ python main.py <region_name>
 python main.py <region_name> -t <topic_name>
 
 # Container mode (runs all topics for a region, saves to DB)
-NV_CITY=<region_name> python main.py
+REGION=<region_name> python main.py
 ```
 
 **Post-implementation verification**: After any code changes, always run `python -m compileall -q .` followed by `python main.py <region_name>` to confirm both compile-time and runtime correctness.
@@ -69,7 +69,7 @@ legislation_finder → content_retrieval → note_taker → summary_writer
 Each region runs as an independent **ECS Fargate task**:
 - **EventBridge Scheduler** triggers weekly
 - **Dispatcher Lambda** fans out — one ECS task per region
-- Each Fargate task runs `main.py` with `NV_CITY` env var, executing all topics sequentially
+- Each Fargate task runs `main.py` with `REGION` env var, executing all topics sequentially
 - Reports written to **Supabase Postgres** `reports` table
 - After all topics complete, a `{region, report_id}` message is enqueued to **SQS**, triggering the **Email Lambda**
 - If any topic or the SQS enqueue fails, failure metadata is sent to the **Pipeline DLQ** before exit 1
@@ -159,7 +159,7 @@ Each region runs as an independent **ECS Fargate task**:
 
 **Single-region Fargate tasks**
 - Each ECS Fargate task runs ONE region (all topics sequentially)
-- `NV_CITY` env var is validated against `regions` before any API calls
+- `REGION` env var is validated against `regions` before any API calls
 - Each topic result is saved to DB immediately after pipeline completion
 - After all topics, enqueues `{region, report_id}` to SQS for the Email Lambda
 - If any topic fails (pipeline error, DB save failure, or SQS enqueue failure), failure metadata is sent to the Pipeline DLQ and the task exits 1
@@ -183,7 +183,7 @@ Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(
 - `TOGETHER_API_KEY`: Dynamic self-information scoring for context compression
 
 **Container-specific**:
-- `NV_CITY`: Region to run pipeline for (set by Dispatcher Lambda)
+- `REGION`: Region to run pipeline for (set by Dispatcher Lambda)
 - `SQS_QUEUE_URL`: SQS queue URL for report-ready messages (triggers Email Lambda)
 - `SQS_PIPELINE_DLQ_URL`: SQS dead letter queue URL for pipeline failure metadata
 
@@ -226,13 +226,13 @@ Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(
 **Docker**:
 ```bash
 docker build -f docker/Dockerfile -t nv-local .
-docker run -e NV_CITY=toronto -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... -e SUPABASE_URL=... -e SUPABASE_KEY=... -e TOGETHER_API_KEY=... nv-local
+docker run -e REGION=toronto -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... -e SUPABASE_URL=... -e SUPABASE_KEY=... -e TOGETHER_API_KEY=... nv-local
 ```
 
 **AWS (ECS Fargate)**:
 - EventBridge Scheduler triggers Dispatcher Lambda weekly
 - Dispatcher Lambda launches one Fargate task per supported region
-- Each task runs `main.py` with `NV_CITY` set, executing all topics and saving to Supabase
+- Each task runs `main.py` with `REGION` set, executing all topics and saving to Supabase
 - After all topics, task enqueues `{region, report_id}` to SQS; failures go to the Pipeline DLQ
 - Email Lambda reads from `reports` table and sends via SES
 
@@ -264,4 +264,4 @@ docker run -e NV_CITY=toronto -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... -e SUP
 1. Run single region: `python main.py <region_name>`
 2. Check error message in stdout/stderr
 3. Likely causes: missing env vars (`OPENAI_API_KEY`, `TAVILY_API_KEY`), Tavily Extract failure on a domain, agent hitting `recursion_limit=40` before completing
-4. Container mode: check ECS task logs in CloudWatch, verify `NV_CITY` is in `regions` table
+4. Container mode: check ECS task logs in CloudWatch, verify `REGION` is in `regions` table
