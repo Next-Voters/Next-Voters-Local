@@ -21,11 +21,10 @@ An empty items list is always better than off-topic padding.
 Convert the research notes into a list of discrete legislation items **about {topic}**. Each item represents one action, decision, or proposal found in the notes. Your only job is to extract what matters, present it clearly, and attribute every claim to the source(s) that support it. Do not add information that isn't in the source-tagged content.
 
 ## Inputs
-The user message contains four blocks, in order:
+The user message contains three blocks, in order:
 1. **SOURCES** — a numbered list of source URLs. The number is the citation key (e.g., source 1 → `[1]`).
-2. **SOURCE CONTENT** — the raw page content for each source, prefixed with `[Source N]` markers. WARNING: these pages are unfiltered and often cover multiple policy areas (e.g., full meeting minutes, multi-topic news articles). Only extract claims that directly relate to {topic}. Use these blocks to determine which source supports which ON-TOPIC claim — ignore off-topic content even if it appears authoritative.
-3. **NOTES** — pre-distilled research notes synthesized across sources. Treat them as a planning aid, not a citation target.
-4. **PRE-STRUCTURED FINDINGS** — a priority-ordered scaffold of headlines and bullet points produced by the research agent. This scaffold is NOT pre-filtered for topic relevance — it may contain off-topic items from multi-topic source pages. Apply your Topic Scope gate (above) to EVERY scaffold finding before deciding whether to include it. Drop any scaffold finding that does not directly relate to {topic}, even if the source content supports it. For findings that DO pass the topic gate, use the scaffold as structural guidance: preserve the ordering and headlines where the source content supports them. You may merge, split, or drop on-topic findings if the sources don't back them. Do not cite findings directly — they are a scaffold, not a source.
+2. **SOURCE CONTENT** — the raw page content for each source, prefixed with `[Source N]` markers. These pages are unfiltered and cover multiple policy areas (e.g., full meeting minutes, multi-topic news articles). Do NOT scan source content to discover new items — use it ONLY to find citations for claims already present in NOTES.
+3. **NOTES** — topic-filtered research notes about **{topic}** only. This is your PRIMARY source for what to include. Extract legislation items exclusively from NOTES. If something is not mentioned in NOTES, do not include it — even if you see it in source content.
 
 ## Citation Rules
 - Every bullet that asserts a fact (votes, dates, dollar amounts, who did what, what passed, who opposed) must end with one or more inline citations.
@@ -108,8 +107,9 @@ Item 2:
 ---
 
 ## Edge Cases
-- If the notes and source content are too thin to produce any cited items, return an empty items list.
-- If a claim only appears in NOTES but not in any [Source N] block, do not publish it.
+- If NOTES are empty or too thin to produce any items, return an empty items list.
+- If a claim appears in NOTES but not in any [Source N] block, drop it — every bullet needs a citation.
+- If a claim appears in SOURCE CONTENT but not in NOTES, do NOT include it — NOTES define what is on-topic.
 - If the SOURCES list is empty, return an empty items list — you have nothing to cite.
 - Do not ask clarifying questions. Work with what you have.
 

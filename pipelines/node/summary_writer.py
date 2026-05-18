@@ -41,9 +41,8 @@ def _build_user_message(
     source_urls: list[str],
     legislation_content: list[str],
     notes: str,
-    findings: list[dict] | None = None,
 ) -> str:
-    """Assemble the SOURCES / SOURCE CONTENT / NOTES / FINDINGS blocks the writer prompt expects."""
+    """Assemble the SOURCES / SOURCE CONTENT / NOTES blocks the writer prompt expects."""
     if source_urls:
         sources_block = "\n".join(f"{i}. {url}" for i, url in enumerate(source_urls, start=1))
     else:
@@ -59,31 +58,13 @@ def _build_user_message(
         content_blocks.append(f"[Source {i}]\n{text}")
     source_content = "\n\n".join(content_blocks) if content_blocks else "(no source content)"
 
-    if findings:
-        findings_lines = []
-        for f in sorted(findings, key=lambda x: x.get("priority", 99)):
-            headline = f.get("headline", "untitled")
-            bullets = f.get("summary", [])
-            sources = f.get("sources", [])
-            lines = [f"[{f.get('priority', '?')}] {headline}"]
-            for b in bullets:
-                lines.append(f"    - {b}")
-            if sources:
-                lines.append(f"    Sources: {', '.join(sources)}")
-            findings_lines.append("\n".join(lines))
-        findings_block = "\n\n".join(findings_lines)
-    else:
-        findings_block = "(no pre-structured findings)"
-
     return (
         "SOURCES:\n"
         f"{sources_block}\n\n"
-        "SOURCE CONTENT:\n"
+        "SOURCE CONTENT (for citation verification — do NOT extract new items from here):\n"
         f"{source_content}\n\n"
-        "NOTES:\n"
-        f"{notes or '(no notes)'}\n\n"
-        "PRE-STRUCTURED FINDINGS (UNFILTERED by topic — apply your Topic Scope gate to every finding before including it; use as scaffold ONLY for on-topic items):\n"
-        f"{findings_block}"
+        "NOTES (your primary source — extract legislation items ONLY from these topic-filtered notes):\n"
+        f"{notes or '(no notes)'}"
     )
 
 
@@ -97,8 +78,7 @@ def research_summary_writer(inputs: ChainData) -> ChainData:
         legislation_content = result.get("legislation_content") or []
         topic_description = result.get("topic_description", "")
 
-        findings = result.get("findings")
-        user_message = _build_user_message(source_urls, legislation_content, notes or "", findings)
+        user_message = _build_user_message(source_urls, legislation_content, notes or "")
 
         formatted_prompt = (
             writer_sys_prompt
