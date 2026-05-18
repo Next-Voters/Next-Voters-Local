@@ -7,6 +7,7 @@ on:
       - "agents/**"
       - "config/**"
       - "pipelines/**"
+      - "tools/**"
       - "utils/**"
       - "main.py"
       - "requirements.txt"
