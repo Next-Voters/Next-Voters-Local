@@ -1,20 +1,24 @@
 """Web search tool adapter for legislation discovery.
 
-Thin adapter that calls Tavily search functions and wraps results
-in LangGraph Commands for state updates.  Returns URLs only — content
-fetching and PDF extraction are handled downstream by content_retrieval.
+Searches for legislation via Tavily, then fetches and compresses full page
+content for each result URL so the researcher agent can evaluate source
+quality directly.  Returns compressed content in the tool message and
+pushes ``{"url", "content"}`` dicts to pipeline state.
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Annotated, Any
 
 from langchain_core.tools import tool, InjectedToolCallId
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from config.constants import WEB_SEARCH_MAX_RESULTS
+from config.constants import WEB_SEARCH_MAX_RESULTS, WEB_SEARCH_PER_URL_CHAR_CAP
 from tools._helpers import ok, err
+from tools.services.extract import extract_url_content
 from tools.services.tavily import search_legislation
+from utils.content.compressor import compress_text
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -44,6 +48,104 @@ def _extract_search_results(raw_results: dict[str, Any]) -> list[dict[str, Any]]
     return results
 
 
+def _fetch_and_compress(
+    urls: list[str],
+    url_titles: dict[str, str],
+    query: str,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Batch-fetch URLs via Tavily Extract, then compress each page.
+
+    Returns:
+        (compressed_by_url, errors_by_url) — two dicts keyed by URL.
+    """
+    if not urls:
+        return {}, {}
+
+    # Batch extract -------------------------------------------------------
+    try:
+        raw_by_url = extract_url_content(urls)
+    except Exception as exc:
+        logger.warning("Tavily Extract failed entirely: %s", exc)
+        return {}, {url: str(exc) for url in urls}
+
+    extracted_urls = set(raw_by_url)
+    errors_by_url: dict[str, str] = {
+        url: "extraction returned no content"
+        for url in urls
+        if url not in extracted_urls
+    }
+
+    # Compress each page in parallel --------------------------------------
+    def _compress_one(url: str) -> tuple[str, str]:
+        raw = raw_by_url[url]
+        if len(raw) > WEB_SEARCH_PER_URL_CHAR_CAP:
+            raw = raw[:WEB_SEARCH_PER_URL_CHAR_CAP]
+        return url, compress_text(raw, query=query)
+
+    compressed_by_url: dict[str, str] = {}
+    compress_targets = [u for u in urls if u in extracted_urls]
+    if compress_targets:
+        with ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(_compress_one, url): url
+                for url in compress_targets
+            }
+            for future in as_completed(futures):
+                url = futures[future]
+                try:
+                    _, compressed = future.result()
+                    compressed_by_url[url] = compressed
+                except Exception as exc:
+                    logger.warning("Compression failed for %s: %s", url, exc)
+                    # Fall back to capped raw content
+                    raw = raw_by_url.get(url, "")
+                    if raw:
+                        compressed_by_url[url] = raw[:WEB_SEARCH_PER_URL_CHAR_CAP]
+                    else:
+                        errors_by_url[url] = f"compression failed: {exc}"
+
+    return compressed_by_url, errors_by_url
+
+
+def _build_tool_message(
+    query: str,
+    city: str,
+    results: list[dict[str, Any]],
+    compressed_by_url: dict[str, str],
+    errors_by_url: dict[str, str],
+) -> str:
+    """Build a human-readable tool message with full compressed content."""
+    header = (
+        f"Web search for '{query}' (city: {city}) "
+        f"returned {len(results)} result(s):\n"
+    )
+    sections: list[str] = []
+    for i, result in enumerate(results, start=1):
+        url = result["url"]
+        title = result["title"]
+
+        if url in compressed_by_url and compressed_by_url[url]:
+            sections.append(
+                f"--- [{i}] {title} ---\n"
+                f"URL: {url}\n"
+                f"Content:\n{compressed_by_url[url]}"
+            )
+        elif url in errors_by_url:
+            sections.append(
+                f"--- [{i}] {title} ---\n"
+                f"URL: {url}\n"
+                f"(content extraction failed: {errors_by_url[url]})"
+            )
+        else:
+            sections.append(
+                f"--- [{i}] {title} ---\n"
+                f"URL: {url}\n"
+                f"(no content available)"
+            )
+
+    return header + "\n\n".join(sections)
+
+
 @tool
 async def web_search(
     query: str,
@@ -51,17 +153,16 @@ async def web_search(
     city: Annotated[str, InjectedState("region")],
     max_results: int = WEB_SEARCH_MAX_RESULTS,
 ) -> Command:
-    """Search the web for legislation related to a specific municipality or topic.
+    """Search the web for legislation and return full compressed page content.
 
-    Uses Tavily search with a legislation profile to prioritize official government
-    sites, legislative databases, and authoritative news sources.
+    Uses Tavily search with a legislation profile, then fetches and compresses
+    each result page so the researcher can evaluate content directly.
 
     Args:
-        query: The search query — e.g. "Austin city council bylaws March 2026" or
-               "municipal ordinance zoning city council passed".
+        query: The search query — e.g. "Austin city council bylaws March 2026".
         tool_call_id: Injected by LangGraph — used to associate the ToolMessage.
         city: The city to find legislation for (injected from state).
-        max_results: Maximum number of results to return (default 5).
+        max_results: Maximum number of results to return (default 3).
 
     Returns:
         A Command object that updates the state with search results.
@@ -73,20 +174,35 @@ async def web_search(
         )
 
         results = _extract_search_results(raw_results)
+        urls = [r["url"] for r in results if r.get("url")]
+        url_titles = {r["url"]: r["title"] for r in results if r.get("url")}
 
-        legislation_sources: list[str] = []
-        for result in results:
-            url = result.get("url", "")
-            if url:
-                legislation_sources.append(url)
+        if not urls:
+            summary = f"Web search for '{query}' (city: {city}) returned 0 results."
+            return ok(tool_call_id, summary, legislation_sources=[])
 
-        summary_lines = [f"  - {url}" for url in legislation_sources]
-        summary = (
-            f"Web search for '{query}' (city: {city}) returned "
-            f"{len(legislation_sources)} result(s):\n"
-            + "\n".join(summary_lines)
+        # Fetch full page content and compress --------------------------------
+        compressed_by_url, errors_by_url = await asyncio.to_thread(
+            _fetch_and_compress, urls, url_titles, query
         )
-        logger.info("web_search returning %d URLs for city=%r", len(legislation_sources), city)
+
+        # Build state: {"url", "content"} dicts for all results ---------------
+        legislation_sources: list[dict[str, str]] = []
+        for url in urls:
+            content = compressed_by_url.get(url, "")
+            legislation_sources.append({"url": url, "content": content})
+
+        # Build tool message with full compressed content ---------------------
+        summary = _build_tool_message(
+            query, city, results, compressed_by_url, errors_by_url
+        )
+
+        logger.info(
+            "web_search returning %d URLs (%d with content) for city=%r",
+            len(urls),
+            len(compressed_by_url),
+            city,
+        )
 
         return ok(tool_call_id, summary, legislation_sources=legislation_sources)
 

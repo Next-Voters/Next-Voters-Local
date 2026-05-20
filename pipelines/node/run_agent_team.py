@@ -82,9 +82,19 @@ def run_agent_team(inputs: ChainData) -> ChainData:
             city, topic, len(legislation_sources), len(all_sources), len(pruned_findings),
         )
 
+        # Extract compressed content from source dicts — replaces the
+        # former content_retrieval pipeline node.
+        legislation_content = [
+            s["content"]
+            if isinstance(s, dict) and s.get("content")
+            else f"[Failed to fetch: {s['url'] if isinstance(s, dict) else s}]"
+            for s in legislation_sources
+        ]
+
         topic_results[topic] = {
             "topic_description": topic_description,
             "legislation_sources": legislation_sources,
+            "legislation_content": legislation_content,
             "findings": pruned_findings,
             "overview": overview,
         }
