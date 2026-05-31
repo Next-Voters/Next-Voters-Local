@@ -10,7 +10,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Annotated, Any
 
-from langchain_core.tools import tool, InjectedToolCallId
+from langchain_core.tools import InjectedToolCallId, tool
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
@@ -165,9 +165,11 @@ async def web_search(
         max_results: Maximum number of results to return (default 3).
 
     Returns:
-        A Command object that updates the state with search results.
+        A Command object that updates the state with search results and content.
     """
-    logger.info("web_search called: query=%r city=%r max_results=%d", query, city, max_results)
+    logger.info(
+        "web_search called: query=%r city=%r max_results=%d", query, city, max_results
+    )
     try:
         raw_results = await asyncio.to_thread(
             search_legislation, query=query, city=city, max_results=max_results

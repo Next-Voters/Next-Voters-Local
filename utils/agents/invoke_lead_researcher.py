@@ -7,14 +7,15 @@ from config.constants import AGENT_RECURSION_LIMIT
 from utils.agents._helpers import reconcile_sources
 from utils.schemas.research_output import LeadResearcherOutput
 
-
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
 
 async def invoke_lead_researcher_agent(
-    city: str, topic: str = "", topic_description: str = "",
+    city: str,
+    topic: str = "",
+    topic_description: str = "",
 ) -> dict:
     """Run the lead researcher for a city + topic.
 
@@ -47,7 +48,8 @@ async def invoke_lead_researcher_agent(
         config={"recursion_limit": AGENT_RECURSION_LIMIT},
     )
 
-    # Extract validated structured output
+    # Extract validated structured output, enriching curated URLs with
+    # content dicts accumulated in state from web_search calls.
     structured: LeadResearcherOutput | None = result.get("structured_response")
     if structured:
         # structured.legislation_sources is list[str] (plain URLs from the

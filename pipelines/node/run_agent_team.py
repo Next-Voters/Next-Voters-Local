@@ -2,9 +2,9 @@ import asyncio
 
 from langchain_core.runnables import RunnableLambda
 
-from utils.schemas import ChainData
 from utils.content.source_reliability import filter_sources
 from utils.logger import get_logger
+from utils.schemas import ChainData
 from utils.supabase_client import get_supported_topics
 
 logger = get_logger(__name__)
@@ -32,7 +32,8 @@ def gather_citations(all_sources: list[str | dict]) -> list[str | dict]:
     accepted_urls = {scored["url"] for scored in filter_sources(plain_urls)}
 
     return [
-        s for s in unique_sources
+        s
+        for s in unique_sources
         if (s["url"] if isinstance(s, dict) else s) in accepted_urls
     ]
 
@@ -74,12 +75,16 @@ def run_agent_team(inputs: ChainData) -> ChainData:
             f["sources"] = [u for u in f.get("sources", []) if u in accepted_urls]
             if f["sources"]:
                 pruned_findings.append(f)
-                
+
         overview = agent_result.get("overview", "")
 
         logger.info(
             "Lead researcher for %s / %s: %d accepted / %d raw, %d findings",
-            city, topic, len(legislation_sources), len(all_sources), len(pruned_findings),
+            city,
+            topic,
+            len(legislation_sources),
+            len(all_sources),
+            len(pruned_findings),
         )
 
         # Extract compressed content from source dicts — replaces the

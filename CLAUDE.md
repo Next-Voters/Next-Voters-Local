@@ -60,6 +60,7 @@ The pipeline is a **fixed, deterministic sequence** of nodes composed via LangGr
 
 ```
 run_agent_team → note_taker → summary_writer
+run_agent_team → note_taker → summary_writer
 ```
 
 **Key design**: Each node is a thin `RunnableSequence` that transforms pipeline state (`ChainData` TypedDict).
@@ -94,7 +95,7 @@ Each region runs as an independent **ECS Fargate task**:
 - `report/`:
   - `storage.py`: Saves pipeline output to Supabase via a two-table upsert: parent `reports` row (per region+date) and child `report_headers` rows (per legislation item with topic, header, and bullets). Returns the `report_id` on success. Single function: `save_report(region, topic_name, result) → int | None`
 - `content/`: Content processing and evaluation utilities
-  - `compressor.py`: Context compression via `compress_text(text, rate, query)`. Retains the first `rate * len(text)` characters (head truncation). The `query` parameter is reserved for future query-aware pruning. Short content (<`MIN_CHARS_TO_COMPRESS` chars) bypasses compression.
+  - `compressor.py`: Context compression via `compress_text(text, rate, query)`. Uses blended self-information token pruning with head-truncation fallback. Called by `web_search` to compress extracted page content inline. Short content (<`MIN_CHARS_TO_COMPRESS` chars) bypasses compression.
   - `source_reliability.py`: Domain-level source reliability scoring and filtering — classifies URLs into government, legislative, news, other, or blocked tiers.
 
 **Tools** (`tools/` — root level):
@@ -112,7 +113,7 @@ Each region runs as an independent **ECS Fargate task**:
 
 **Configuration** (`config/`):
 - `system_prompts/`: Prompt templates for agents and nodes
-- `constants.py`: Pipeline-wide tuneable constants: `COMPRESSION_RATE`, `MIN_CHARS_TO_COMPRESS`, `MAX_REFLECTION_ENTRIES`, `AGENT_RECURSION_LIMIT`, `MAX_RESEARCHER_INVOCATIONS`
+- `constants.py`: Pipeline-wide tuneable constants: `WEB_SEARCH_PER_URL_CHAR_CAP`, `COMPRESSION_RATE`, `MIN_CHARS_TO_COMPRESS`, `MAX_REFLECTION_ENTRIES`, `AGENT_RECURSION_LIMIT`, `MAX_RESEARCHER_INVOCATIONS`
 
 ### Data Flow Example
 
@@ -217,6 +218,7 @@ Use `get_llm()`, `get_mini_llm()` (same config as default), `get_structured_llm(
 - **No dedicated config file**: Configuration is inlined (e.g., `DEFAULT_LLM_CONFIG` in `utils/llm/config.py`)
 - **Minimal dependencies**: Only essential packages in `requirements.txt`
 - **Docstrings**: Required for all functions, classes, and methods
+- **Linting**: Ruff linter + formatter, configured in `pyproject.toml`. Run `ruff check --fix . && ruff format .` before committing, or rely on the pre-commit hook
 
 ## Deployment
 
@@ -239,7 +241,7 @@ docker run -e REGION=toronto -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... -e SUPA
 
 ## Important Known Issues / WIP
 
-- Tavily Extract can fail on some domains (access restrictions, JS-heavy SPAs); `markdown.new` fallback handles most of these but is not 100% reliable
+- Tavily Extract can fail on some domains (access restrictions, JS-heavy SPAs); when extraction fails for a URL, `web_search` returns an empty content string and the researcher works from search snippets only
 
 ## Common Development Tasks
 

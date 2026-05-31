@@ -77,15 +77,22 @@ async def researcher_agent_tool(
         search_guidance=search_guidance,
         topic_description=topic_description,
     )
+    result = await invoke_researcher_agent(
+        city=city,
+        topic=topic,
+        issue=issue,
+        search_guidance=search_guidance,
+        topic_description=topic_description,
+    )
 
+    summary = result["research_summary"]
+    sources = result["legislation_sources"]
     summary = result["research_summary"]
     sources = result["legislation_sources"]
 
     return Command(
         update={
-            "messages": [
-                ToolMessage(content=summary, tool_call_id=tool_call_id)
-            ],
+            "messages": [ToolMessage(content=summary, tool_call_id=tool_call_id)],
             "legislation_sources": sources,
             "researcher_invocation_count": 1,
         }
