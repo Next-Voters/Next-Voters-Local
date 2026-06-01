@@ -87,8 +87,7 @@ def _fetch_and_compress(
     if compress_targets:
         with ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(_compress_one, url): url
-                for url in compress_targets
+                executor.submit(_compress_one, url): url for url in compress_targets
             }
             for future in as_completed(futures):
                 url = futures[future]
@@ -116,8 +115,7 @@ def _build_tool_message(
 ) -> str:
     """Build a human-readable tool message with full compressed content."""
     header = (
-        f"Web search for '{query}' (city: {city}) "
-        f"returned {len(results)} result(s):\n"
+        f"Web search for '{query}' (city: {city}) returned {len(results)} result(s):\n"
     )
     sections: list[str] = []
     for i, result in enumerate(results, start=1):
@@ -126,9 +124,7 @@ def _build_tool_message(
 
         if url in compressed_by_url and compressed_by_url[url]:
             sections.append(
-                f"--- [{i}] {title} ---\n"
-                f"URL: {url}\n"
-                f"Content:\n{compressed_by_url[url]}"
+                f"--- [{i}] {title} ---\nURL: {url}\nContent:\n{compressed_by_url[url]}"
             )
         elif url in errors_by_url:
             sections.append(
@@ -138,9 +134,7 @@ def _build_tool_message(
             )
         else:
             sections.append(
-                f"--- [{i}] {title} ---\n"
-                f"URL: {url}\n"
-                f"(no content available)"
+                f"--- [{i}] {title} ---\nURL: {url}\n(no content available)"
             )
 
     return header + "\n\n".join(sections)

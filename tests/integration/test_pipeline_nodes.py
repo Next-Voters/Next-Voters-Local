@@ -73,7 +73,9 @@ class TestNoteTakerNode:
     def test_note_content_matches_llm_output(self):
         data = _base_chain_data()
         result = self._invoke_note_taker(data, note_text="Notes: Bill A passed 7-2.")
-        assert result["topic_results"]["housing"]["notes"] == "Notes: Bill A passed 7-2."
+        assert (
+            result["topic_results"]["housing"]["notes"] == "Notes: Bill A passed 7-2."
+        )
 
     def test_preserves_existing_topic_fields(self):
         data = _base_chain_data()
@@ -103,7 +105,9 @@ class TestSummaryWriterNode:
         _get_model.cache_clear()
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = writer_output
-        with patch("pipelines.node.summary_writer.get_structured_llm", return_value=mock_llm):
+        with patch(
+            "pipelines.node.summary_writer.get_structured_llm", return_value=mock_llm
+        ):
             _get_model.cache_clear()
             return summary_writer_chain.invoke(chain_data)
 
@@ -174,7 +178,10 @@ class TestNoteTakerToSummaryWriterChain:
         topic = final["topic_results"]["housing"]
         assert topic["notes"] == note_text
         assert topic["legislation_summary"] is expected_summary
-        assert topic["legislation_summary"].items[0].header == "Council passes housing bill"
+        assert (
+            topic["legislation_summary"].items[0].header
+            == "Council passes housing bill"
+        )
 
     def test_full_chain_no_content_produces_no_summary(self):
         """Topics with no content should end with notes=placeholder and summary=None."""

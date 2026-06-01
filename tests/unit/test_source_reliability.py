@@ -3,7 +3,6 @@
 Pure function tests — no mocking required.
 """
 
-
 from utils.content.source_reliability import filter_sources, score_url
 
 
@@ -24,7 +23,9 @@ class TestScoreUrlTier1Government:
         assert result["tier_name"] == "government"
 
     def test_secure_toronto_ca(self):
-        result = score_url("https://secure.toronto.ca/council/agendaItem.do?item=2024.EX20.1")
+        result = score_url(
+            "https://secure.toronto.ca/council/agendaItem.do?item=2024.EX20.1"
+        )
         assert result["tier"] == 1
 
     def test_vancouver_ca(self):
@@ -44,12 +45,16 @@ class TestScoreUrlTier1Government:
 
 class TestScoreUrlTier2Legislative:
     def test_legistar(self):
-        result = score_url("https://toronto.legistar.com/LegislationDetail.aspx?ID=1234")
+        result = score_url(
+            "https://toronto.legistar.com/LegislationDetail.aspx?ID=1234"
+        )
         assert result["tier"] == 2
         assert result["tier_name"] == "legislative"
 
     def test_municode(self):
-        result = score_url("https://library.municode.com/ca/san_francisco/codes/code_of_ordinances")
+        result = score_url(
+            "https://library.municode.com/ca/san_francisco/codes/code_of_ordinances"
+        )
         assert result["tier"] == 2
 
     def test_granicus(self):
@@ -91,7 +96,9 @@ class TestScoreUrlTier0Blocked:
         assert result["tier"] == 0
 
     def test_reddit(self):
-        result = score_url("https://reddit.com/r/toronto/comments/abc/housing_discussion")
+        result = score_url(
+            "https://reddit.com/r/toronto/comments/abc/housing_discussion"
+        )
         assert result["tier"] == 0
 
     def test_medium(self):
@@ -107,7 +114,9 @@ class TestScoreUrlOpinionDemotion:
     """Opinion/editorial paths demote even high-quality domains to tier 4."""
 
     def test_news_domain_opinion_path_demoted_to_tier4(self):
-        result = score_url("https://www.nytimes.com/opinion/2024/01/housing-crisis.html")
+        result = score_url(
+            "https://www.nytimes.com/opinion/2024/01/housing-crisis.html"
+        )
         assert result["tier"] == 4
         assert result["tier_name"] == "other"
         assert "Opinion" in result["reason"] or "opinion" in result["reason"].lower()
@@ -162,9 +171,9 @@ class TestFilterSources:
 
     def test_sorted_by_tier_ascending(self):
         urls = [
-            "https://www.nytimes.com/news",      # tier 3
-            "https://toronto.ca/council",         # tier 1
-            "https://legistar.com/toronto",       # tier 2
+            "https://www.nytimes.com/news",  # tier 3
+            "https://toronto.ca/council",  # tier 1
+            "https://legistar.com/toronto",  # tier 2
         ]
         result = filter_sources(urls)
         tiers = [r["tier"] for r in result]
@@ -172,10 +181,10 @@ class TestFilterSources:
 
     def test_min_tier_filters_lower_tiers(self):
         urls = [
-            "https://toronto.ca/council",         # tier 1 — pass
-            "https://legistar.com/toronto",       # tier 2 — pass
-            "https://www.nytimes.com/news",       # tier 3 — blocked at min_tier=2
-            "https://www.example.com/other",      # tier 4 — blocked at min_tier=2
+            "https://toronto.ca/council",  # tier 1 — pass
+            "https://legistar.com/toronto",  # tier 2 — pass
+            "https://www.nytimes.com/news",  # tier 3 — blocked at min_tier=2
+            "https://www.example.com/other",  # tier 4 — blocked at min_tier=2
         ]
         result = filter_sources(urls, min_tier=2)
         tiers = [r["tier"] for r in result]

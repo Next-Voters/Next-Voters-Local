@@ -56,7 +56,9 @@ def run_agent_team(inputs: ChainData) -> ChainData:
         topic_description = topic_info.get("description", "")
         logger.info("Running lead researcher for %s / %s", city, topic)
 
-        lead_researcher_states = dict(city=city, topic=topic, topic_description=topic_description)
+        lead_researcher_states = dict(
+            city=city, topic=topic, topic_description=topic_description
+        )
         agent_result = asyncio.run(
             invoke_lead_researcher_agent(**lead_researcher_states)
         )

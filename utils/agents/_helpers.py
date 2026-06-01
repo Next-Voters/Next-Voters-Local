@@ -32,10 +32,7 @@ def reconcile_sources(
 
     # If no curated list, fall back to all dicts
     if not curated_urls:
-        return [
-            s for s in accumulated
-            if isinstance(s, dict) and s.get("url")
-        ]
+        return [s for s in accumulated if isinstance(s, dict) and s.get("url")]
 
     # Enrich curated URLs with content
     result: list[str | dict] = []

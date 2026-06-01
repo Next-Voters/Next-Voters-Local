@@ -20,7 +20,9 @@ class TestShortTextBypass:
     def test_at_threshold_calls_pruner(self):
         # len == MIN_CHARS_TO_COMPRESS is NOT below threshold → pruner is invoked.
         text = "B" * MIN_CHARS_TO_COMPRESS
-        with patch("utils.content.pruner.prune_text", return_value="pruned") as mock_prune:
+        with patch(
+            "utils.content.pruner.prune_text", return_value="pruned"
+        ) as mock_prune:
             result = compress_text(text)
         mock_prune.assert_called_once()
         assert result == "pruned"
@@ -36,7 +38,9 @@ class TestShortTextBypass:
 class TestNormalCompression:
     def test_delegates_to_prune_text(self):
         expected = "compressed output"
-        with patch("utils.content.pruner.prune_text", return_value=expected) as mock_prune:
+        with patch(
+            "utils.content.pruner.prune_text", return_value=expected
+        ) as mock_prune:
             result = compress_text(LONG_TEXT, rate=0.5, query="housing")
         assert result == expected
         mock_prune.assert_called_once_with(LONG_TEXT, rate=0.5, query="housing")
@@ -56,7 +60,10 @@ class TestNormalCompression:
 
 class TestFallbackTruncation:
     def test_falls_back_to_head_truncation_on_pruner_error(self):
-        with patch("utils.content.pruner.prune_text", side_effect=RuntimeError("model unavailable")):
+        with patch(
+            "utils.content.pruner.prune_text",
+            side_effect=RuntimeError("model unavailable"),
+        ):
             result = compress_text(LONG_TEXT, rate=0.5)
         target = max(MIN_CHARS_TO_COMPRESS, int(len(LONG_TEXT) * 0.5))
         assert result == LONG_TEXT[:target]

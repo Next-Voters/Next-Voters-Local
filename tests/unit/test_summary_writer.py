@@ -112,7 +112,9 @@ def _run_summary_writer(inputs, writer_output):
     from pipelines.node.summary_writer import _get_model
 
     _get_model.cache_clear()
-    with patch("pipelines.node.summary_writer.get_structured_llm", return_value=mock_llm):
+    with patch(
+        "pipelines.node.summary_writer.get_structured_llm", return_value=mock_llm
+    ):
         _get_model.cache_clear()
         return research_summary_writer(inputs)
 
@@ -131,7 +133,10 @@ class TestResearchSummaryWriter:
             },
         }
         result = _run_summary_writer(inputs, sample_writer_output)
-        assert result["topic_results"]["housing"]["legislation_summary"] is sample_writer_output
+        assert (
+            result["topic_results"]["housing"]["legislation_summary"]
+            is sample_writer_output
+        )
 
     def test_sets_none_when_writer_returns_empty_items(self):
         inputs = {

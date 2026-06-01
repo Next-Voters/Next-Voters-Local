@@ -41,7 +41,10 @@ class TestResearchNoteTaker:
             },
         }
         result = self._run(inputs)
-        assert result["topic_results"]["housing"]["notes"] == "No legislation content found."
+        assert (
+            result["topic_results"]["housing"]["notes"]
+            == "No legislation content found."
+        )
 
     def test_topic_with_content_invokes_llm(self):
         inputs = {
@@ -54,7 +57,10 @@ class TestResearchNoteTaker:
             },
         }
         result = self._run(inputs, llm_response_text="Condensed notes about housing.")
-        assert result["topic_results"]["housing"]["notes"] == "Condensed notes about housing."
+        assert (
+            result["topic_results"]["housing"]["notes"]
+            == "Condensed notes about housing."
+        )
 
     def test_other_topic_fields_preserved(self):
         inputs = {
@@ -89,7 +95,10 @@ class TestResearchNoteTaker:
         }
         result = self._run(inputs, llm_response_text="Housing notes.")
         assert result["topic_results"]["housing"]["notes"] == "Housing notes."
-        assert result["topic_results"]["transit"]["notes"] == "No legislation content found."
+        assert (
+            result["topic_results"]["transit"]["notes"]
+            == "No legislation content found."
+        )
 
     def test_region_preserved_in_output(self):
         inputs = {"region": "san-francisco", "topic_results": {}}

@@ -29,7 +29,9 @@ class TestEnqueueReport:
         assert enqueue_report("toronto", 42) is False
 
     def test_returns_true_on_success(self, monkeypatch):
-        monkeypatch.setenv("SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/queue")
+        monkeypatch.setenv(
+            "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/queue"
+        )
         mock_sqs = MagicMock()
         with patch("utils.sqs_client.get_sqs_client", return_value=mock_sqs):
             result = enqueue_report("toronto", 42)
@@ -48,7 +50,9 @@ class TestEnqueueReport:
         assert body == {"region": "toronto", "report_id": 42}
 
     def test_returns_false_on_boto3_exception(self, monkeypatch):
-        monkeypatch.setenv("SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/queue")
+        monkeypatch.setenv(
+            "SQS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/queue"
+        )
         mock_sqs = MagicMock()
         mock_sqs.send_message.side_effect = Exception("network error")
         with patch("utils.sqs_client.get_sqs_client", return_value=mock_sqs):
@@ -67,14 +71,18 @@ class TestEnqueuePipelineFailure:
         assert enqueue_pipeline_failure("toronto", ["toronto (housing)"], None) is False
 
     def test_returns_true_on_success(self, monkeypatch):
-        monkeypatch.setenv("SQS_PIPELINE_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/dlq")
+        monkeypatch.setenv(
+            "SQS_PIPELINE_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/dlq"
+        )
         mock_sqs = MagicMock()
         with patch("utils.sqs_client.get_sqs_client", return_value=mock_sqs):
             result = enqueue_pipeline_failure("toronto", ["toronto (housing)"], 99)
         assert result is True
 
     def test_message_body_contains_required_fields(self, monkeypatch):
-        monkeypatch.setenv("SQS_PIPELINE_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/dlq")
+        monkeypatch.setenv(
+            "SQS_PIPELINE_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/dlq"
+        )
         mock_sqs = MagicMock()
         with patch("utils.sqs_client.get_sqs_client", return_value=mock_sqs):
             enqueue_pipeline_failure("toronto", ["toronto (housing)"], 99)
@@ -85,7 +93,9 @@ class TestEnqueuePipelineFailure:
         assert "timestamp" in body
 
     def test_report_id_none_is_included(self, monkeypatch):
-        monkeypatch.setenv("SQS_PIPELINE_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/dlq")
+        monkeypatch.setenv(
+            "SQS_PIPELINE_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/dlq"
+        )
         mock_sqs = MagicMock()
         with patch("utils.sqs_client.get_sqs_client", return_value=mock_sqs):
             enqueue_pipeline_failure("toronto", [], None)
@@ -93,7 +103,9 @@ class TestEnqueuePipelineFailure:
         assert body["report_id"] is None
 
     def test_returns_false_on_boto3_exception(self, monkeypatch):
-        monkeypatch.setenv("SQS_PIPELINE_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/dlq")
+        monkeypatch.setenv(
+            "SQS_PIPELINE_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/dlq"
+        )
         mock_sqs = MagicMock()
         mock_sqs.send_message.side_effect = RuntimeError("timeout")
         with patch("utils.sqs_client.get_sqs_client", return_value=mock_sqs):

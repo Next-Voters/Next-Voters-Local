@@ -20,17 +20,21 @@ class TestNormalizeSourceUrls:
         assert result == ["https://toronto.ca", "https://legistar.com"]
 
     def test_dict_sources(self):
-        result = _normalize_source_urls([
-            {"url": "https://toronto.ca", "content": "text"},
-            {"url": "https://legistar.com", "content": "more text"},
-        ])
+        result = _normalize_source_urls(
+            [
+                {"url": "https://toronto.ca", "content": "text"},
+                {"url": "https://legistar.com", "content": "more text"},
+            ]
+        )
         assert result == ["https://toronto.ca", "https://legistar.com"]
 
     def test_mixed_sources(self):
-        result = _normalize_source_urls([
-            "https://toronto.ca",
-            {"url": "https://legistar.com", "content": "text"},
-        ])
+        result = _normalize_source_urls(
+            [
+                "https://toronto.ca",
+                {"url": "https://legistar.com", "content": "text"},
+            ]
+        )
         assert result == ["https://toronto.ca", "https://legistar.com"]
 
     def test_strips_whitespace(self):
@@ -48,7 +52,9 @@ class TestNormalizeSourceUrls:
         assert result == ["https://valid.com"]
 
     def test_skips_dict_with_empty_url(self):
-        result = _normalize_source_urls([{"url": "", "content": "x"}, {"url": "https://a.com"}])
+        result = _normalize_source_urls(
+            [{"url": "", "content": "x"}, {"url": "https://a.com"}]
+        )
         assert result == ["https://a.com"]
 
 
@@ -97,9 +103,7 @@ def _make_supabase_mock(report_id=42):
     upsert_response = MagicMock()
     upsert_response.data = [{"id": report_id}]
     (
-        client.table.return_value
-        .upsert.return_value
-        .execute.return_value
+        client.table.return_value.upsert.return_value.execute.return_value
     ) = upsert_response
     return client
 
@@ -119,13 +123,17 @@ class TestSaveReport:
         assert result is None
 
     def test_returns_none_when_topic_id_not_found(self):
-        summary = WriterOutput(items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])])
+        summary = WriterOutput(
+            items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])]
+        )
         with patch("utils.report.storage._get_topic_id", return_value=None):
             result = save_report("toronto", "housing", {"legislation_summary": summary})
         assert result is None
 
     def test_returns_report_id_on_success(self):
-        summary = WriterOutput(items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])])
+        summary = WriterOutput(
+            items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])]
+        )
         client = _make_supabase_mock(report_id=99)
         with (
             patch("utils.report.storage._get_topic_id", return_value=7),
@@ -142,7 +150,9 @@ class TestSaveReport:
         assert result == 99
 
     def test_upserts_report_row(self):
-        summary = WriterOutput(items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])])
+        summary = WriterOutput(
+            items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])]
+        )
         client = _make_supabase_mock()
         with (
             patch("utils.report.storage._get_topic_id", return_value=1),
@@ -153,7 +163,9 @@ class TestSaveReport:
         client.table.assert_any_call("reports")
 
     def test_inserts_report_headers(self):
-        summary = WriterOutput(items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])])
+        summary = WriterOutput(
+            items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])]
+        )
         client = _make_supabase_mock()
         with (
             patch("utils.report.storage._get_topic_id", return_value=1),
@@ -164,7 +176,9 @@ class TestSaveReport:
         client.table.assert_any_call("report_headers")
 
     def test_returns_none_on_supabase_exception(self):
-        summary = WriterOutput(items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])])
+        summary = WriterOutput(
+            items=[LegislationItem(header="h", bullets=["b"], cited_sources=[])]
+        )
         client = MagicMock()
         client.table.side_effect = Exception("connection refused")
         with (

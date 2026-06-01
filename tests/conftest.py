@@ -34,7 +34,10 @@ def sample_chain_data(sample_writer_output):
                 "topic_description": "Municipal housing and rental policy",
                 "legislation_sources": [
                     "https://toronto.ca/council/agenda/2024-11-01/",
-                    {"url": "https://legistar.com/toronto/bills/12345", "content": "full text"},
+                    {
+                        "url": "https://legistar.com/toronto/bills/12345",
+                        "content": "full text",
+                    },
                 ],
                 "legislation_content": [
                     "Compressed content about housing bill A.",
